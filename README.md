@@ -2,78 +2,90 @@
 
 > A smart terminal emulator that meets users where they are.
 
-Blaze is a Tauri-based terminal that keeps a real shell underneath but adds a structured, interactive layer on top:
+Blaze is a desktop terminal that keeps a real shell (`zsh` / `bash` / `fish`) underneath but layers a structured, interactive UX on top. Click folder names in `ls` output to navigate. Hold ⌘ + click a log file to `tail -f` it. Capture command sequences as Markdown runbooks and replay them step-by-step with variables, secrets stored in your OS keychain, and conditional execution.
 
-- **Clickable, keyboard-navigable file output** — `ls` rows are interactive; `cd` by pressing Enter on a folder.
-- **Smart file actions** — hold the platform Super key, click a file, and Blaze runs the right command (`tail -f` a log, edit a config, render a Markdown).
-- **Drag-and-drop file transfer between panes** — local copy/move via `cp`/`rsync`; remote `scp`/`rsync -e ssh` (v1.3).
-- **Markdown runbooks** — capture command sequences as `.md` files, run them step-by-step or top-to-bottom in a split command/output view.
-- **AI command translation** (v1.1) — Cmd+K to turn English into shell, with BYO providers (Ollama, Claude, OpenAI/Codex).
-- **Tabs, recursive split panes, themes**, OS-aware defaults, OSC 133 shell integration.
+> ⚠️ **Status: pre-alpha.** Built in the open. There are no signed installer downloads yet — to use Blaze today you build it from source (one command, instructions below). When v1.0 ships, this section will point at a `.dmg` and a Linux `.AppImage`.
 
-> **Status: pre-alpha (v0.1.0 walking skeleton).** Not ready for daily use. See [`docs/specs.md`](./docs/specs.md) for the product spec and [`docs/execution-plan.md`](./docs/execution-plan.md) for the phase-wise plan.
+---
 
-## Stack
+## What you get
 
-- **Tauri 2** (small native shell, OS webview)
-- **Rust** core (PTY, ANSI parser, runbooks, transfers, AI adapters)
-- **React + Vite + TypeScript** UI
-- **xterm.js + WebGL** renderer
+- 🖥️ **Tabs and recursive split panes** with keyboard navigation (`Cmd+T`, `Cmd+D`, `Cmd+Alt+Arrow`, …).
+- 🟦 **Command blocks** — every command + its output is a structured unit. Jump between blocks with `Cmd+[` / `Cmd+]`. Copy the last command (`Cmd+Shift+K`), copy the last output (`Cmd+Shift+O`), or rerun it (`Cmd+R`) without scrolling.
+- 📁 **Clickable file names** in `ls -l`, `find`, `grep -n` / `rg`, `git status` output. Plain click on a folder runs `cd <folder> && ls`. **Cmd+click** on a `.log` runs `tail -f`, on a `.md` runs `less`, on a config file runs `$EDITOR`, on an image runs `open`. The mapping is built-in and recognises ~40 common file types.
+- 🔍 **Scrollback search** (`Cmd+F`) with live-highlighting and next/prev navigation.
+- 📓 **Markdown runbooks** with a dedicated split-view workspace:
+  - Read `.md` files from `~/Documents/Blaze/runbooks/`
+  - Each fenced `bash` block is one step
+  - Per-step status, exit codes, durations
+  - **Run all** with pause-on-error
+  - **Variables**: `{{name}}` placeholders prompt before run, cached for the session
+  - **Secrets**: `{{secret:NAME}}` placeholders read from the OS keychain (macOS Keychain / Linux Secret Service / Windows Credential Manager); first time prompts and saves
+  - **Conditional steps**: `if='[ "$ENV" = "prod" ]'` / `unless='…'` — Run-all skips inapplicable branches with explicit trace lines
+  - **Manual checkpoints**: `mode=manual` makes Run-all pause for confirmation before destructive operations
+  - **Save runbooks from your shell history** (`Cmd+Shift+S`) — pick recent commands, name the runbook, done
+- 🛡️ **Local-first, privacy-first.** No telemetry. No cloud calls until you opt in to AI in v1.1.
 
-## Repository layout
+Coming in v1.1 / v1.2 / v1.3: AI-powered `Cmd+K` ("translate this English into a shell command", BYO Ollama / Claude / OpenAI), Windows + WSL support, SSH panes with remote drag-drop transfer.
 
-```
-blaze/
-├── apps/
-│   └── desktop/                # Tauri shell + React UI
-│       ├── src/                # TypeScript UI
-│       └── src-tauri/          # Tauri Rust glue
-├── crates/
-│   ├── blaze-pty/              # PTY abstraction
-│   ├── blaze-vt/               # ANSI parser + command-block tracking
-│   ├── blaze-shell-integration/# OSC 133 installer
-│   ├── blaze-parsers/          # ls/find/grep/git/etc. output parsers
-│   ├── blaze-actions/          # smart-action registry
-│   ├── blaze-transfer/         # drag-drop transfer engine
-│   ├── blaze-runbook/          # Markdown runbook parser + executor
-│   └── blaze-ai/               # AI provider adapters
-├── docs/
-│   ├── specs.md                # product spec
-│   └── execution-plan.md       # phase-wise execution plan
-└── .github/workflows/          # CI
-```
+---
 
-## Getting started
+## Install
 
-### Prerequisites
+### macOS / Linux (build from source)
 
-- **Node** ≥ 20
-- **pnpm** ≥ 10 (`npm i -g pnpm` or `brew install pnpm`)
-- **Rust** stable (`brew install rustup && rustup default stable`)
-- macOS 13+ or a glibc-based Linux (Ubuntu 22.04+, Fedora 39+)
+You'll need three tools. If you have them already, skip the setup line.
 
-### Install and run
+| Tool            | Why                 | Install                                                                                            |
+| --------------- | ------------------- | -------------------------------------------------------------------------------------------------- |
+| **Node ≥ 20**   | UI build            | [nodejs.org](https://nodejs.org/) or `brew install node`                                           |
+| **pnpm ≥ 10**   | package manager     | `npm install -g pnpm` or `brew install pnpm`                                                       |
+| **Rust stable** | Tauri / native core | `brew install rustup && rustup default stable` (macOS), or [rustup.rs](https://rustup.rs/) (Linux) |
+
+On Linux you also need Tauri's GTK dependencies (one-time):
 
 ```bash
+sudo apt install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev \
+  libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+```
+
+Then:
+
+```bash
+git clone https://github.com/omnibus-acik/blaze-terminal.git
+cd blaze-terminal
 pnpm install
-pnpm dev          # starts Vite + opens the Tauri window
+pnpm dev          # opens the Blaze window
 ```
 
-### Build a release bundle
+That's the development build with hot reload. To produce a redistributable bundle:
 
 ```bash
-pnpm build
+pnpm build        # outputs apps/desktop/src-tauri/target/release/bundle/
 ```
 
-### Other useful commands
+The bundle isn't code-signed yet (signed dmg/AppImage land at v1.0), so macOS will require right-click → Open the first time.
 
-```bash
-pnpm fmt                     # format TS/JS/JSON/MD/CSS via Prettier
-pnpm fmt:check               # check formatting
-cargo fmt --all              # format Rust
-cargo clippy --workspace     # lint Rust
-cargo test --workspace       # run Rust tests
-```
+### Supported OS versions
+
+- macOS 13 (Ventura) or later
+- Ubuntu 22.04+, Fedora 39+, or another glibc-based Linux
+
+Windows + WSL support is on the roadmap (v1.2).
+
+---
+
+## First-time setup inside Blaze
+
+1. **Allow shell integration when prompted.** A banner appears the first time asking to add OSC 133 hooks to your `~/.zshrc` (or `.bashrc` / `~/.config/fish/config.fish`). This is what enables command blocks, exit-code tracking, captured commands, and the runbook step-status pills. The block is bounded by clearly-marked comments — installation is reversible.
+2. _(Optional)_ **Drop a sample runbook**:
+   ```bash
+   mkdir -p ~/Documents/Blaze/runbooks
+   cp docs/runbook-example.md ~/Documents/Blaze/runbooks/
+   ```
+   Then `Cmd+Shift+R` inside Blaze to open the runbook picker.
+
+---
 
 ## Configuration
 
@@ -83,53 +95,129 @@ Blaze reads `~/.config/blaze/config.toml` on startup. The file is optional — d
 [appearance]
 font_family = 'ui-monospace, "SF Mono", Menlo, monospace'
 font_size = 13
+line_height = 1.2
 
 [terminal]
 scrollback_lines = 100000
 # shell = "/opt/homebrew/bin/fish"   # default: $SHELL, fallback /bin/zsh
+cursor_blink = true
+
+[runbooks]
+# dir = "~/work/runbooks"            # default: ~/Documents/Blaze/runbooks
 ```
+
+---
 
 ## Keyboard shortcuts
 
-| Shortcut                      | Action                                                                               |
-| ----------------------------- | ------------------------------------------------------------------------------------ |
-| `Cmd/Ctrl + T`                | New tab                                                                              |
-| `Cmd/Ctrl + W`                | Close active tab                                                                     |
-| `Cmd/Ctrl + 1..9`             | Switch to tab N                                                                      |
-| `Cmd/Ctrl + D`                | Split right                                                                          |
-| `Cmd/Ctrl + Shift + D`        | Split down                                                                           |
-| `Cmd/Ctrl + Shift + W`        | Close active pane                                                                    |
-| `Cmd/Ctrl + Alt + Arrow`      | Navigate panes                                                                       |
-| `Cmd/Ctrl + F`                | Search scrollback                                                                    |
-| `Esc` (in search)             | Close search                                                                         |
-| `Enter` / `Shift + Enter`     | Next / previous match                                                                |
-| `Cmd/Ctrl + [` / `]`          | Previous / next block                                                                |
-| `Cmd/Ctrl + Shift + K`        | Copy last command                                                                    |
-| `Cmd/Ctrl + Shift + O`        | Copy last output                                                                     |
-| `Cmd/Ctrl + R`                | Rerun last command                                                                   |
-| `Cmd/Ctrl + J`                | Open parsed-block picker (last block; e.g. after `ls -l`)                            |
-| In picker: hold `Cmd/Ctrl`    | Show smart-action hint per row (`tail -f log`, edit config, …)                       |
-| In picker: `Cmd/Ctrl + Enter` | Fire smart action instead of default                                                 |
-| `Cmd/Ctrl + Shift + R`        | Open runbook picker (`~/Documents/Blaze/runbooks/*.md`) — opens split-view workspace |
-| `Cmd/Ctrl + Shift + S`        | Save recent blocks from active pane as a new runbook                                 |
-| In runbook: `Enter`           | Run focused step (prompts for `{{var}}` if any)                                      |
+`⌘` on macOS, `Ctrl` elsewhere.
+
+### Tabs & panes
+
+| Shortcut            | Action                 |
+| ------------------- | ---------------------- |
+| `⌘ + T`             | New tab                |
+| `⌘ + W`             | Close tab              |
+| `⌘ + 1` … `⌘ + 9`   | Switch to tab N        |
+| `⌘ + D`             | Split right            |
+| `⌘ + Shift + D`     | Split down             |
+| `⌘ + Shift + W`     | Close active pane      |
+| `⌘ + Alt + ← ↑ ↓ →` | Navigate between panes |
+
+### Search
+
+| Shortcut                  | Action                |
+| ------------------------- | --------------------- |
+| `⌘ + F`                   | Search scrollback     |
+| `Esc`                     | Close search          |
+| `Enter` / `Shift + Enter` | Next / previous match |
+
+### Command blocks
+
+| Shortcut               | Action                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `⌘ + [` / `⌘ + ]`      | Previous / next block                                                            |
+| `⌘ + Shift + K`        | Copy last command                                                                |
+| `⌘ + Shift + O`        | Copy last output                                                                 |
+| `⌘ + R`                | Rerun last command                                                               |
+| `⌘ + J`                | Open the parsed-block picker (last `ls -l`, `find`, `grep`, `git status`)        |
+| Click on a folder name | `cd` into it                                                                     |
+| `⌘ + click` on a file  | Smart action (tail log, edit config, render Markdown, open image, list archive…) |
+
+### Runbooks
+
+| Shortcut                                   | Action                                                  |
+| ------------------------------------------ | ------------------------------------------------------- |
+| `⌘ + Shift + R`                            | Open runbook picker (lists `*.md` in your runbooks dir) |
+| `⌘ + Shift + S`                            | Save recent blocks from active pane as a new runbook    |
+| Inside runbook: `↑` / `↓` or `j` / `k`     | Move focus                                              |
+| Inside runbook: `Enter`                    | Run the focused step                                    |
+| Inside runbook: `Esc` (in variable prompt) | Cancel                                                  |
+
+---
+
+## Runbook format at a glance
+
+````markdown
+---
+name: Deploy staging
+description: Build, test, deploy
+---
+
+## Run tests
+
+```bash
+npm test
+```
+````
+
+## Confirm before pushing
+
+```bash blaze: name="Manual checkpoint" mode=manual
+echo "Pausing — click Run when ready"
+```
+
+## Production-only smoke check
+
+```bash blaze: if='[ "$ENV" = "prod" ]'
+./scripts/prod-smoke.sh
+```
+
+## Deploy with a captured token
+
+```bash
+./deploy.sh --token={{secret:deploy_token}} --target={{env}}
+```
+
+```
+
+The full grammar — fences, frontmatter, directives (`name`, `mode`, `if`, `unless`), variables (`{{var}}`, `{{secret:NAME}}`) — lives in [`docs/specs.md`](./docs/specs.md) §5.6, alongside the rest of the product spec.
+
+---
 
 ## Roadmap
 
-| Version          | What's in it                                                                                     |
-| ---------------- | ------------------------------------------------------------------------------------------------ |
-| **v0.x (alpha)** | Walking skeleton → tabs/splits → command blocks → parsers → smart actions → transfers → runbooks |
-| **v1.0**         | All v0.x features hardened; macOS + Linux release                                                |
-| **v1.1**         | AI integration (Cmd+K, NL detection, BYO providers)                                              |
-| **v1.2**         | Windows + WSL                                                                                    |
-| **v1.3**         | SSH + remote pane-to-pane transfer                                                               |
+| Version | What's in it |
+|---|---|
+| **Pre-alpha (today)** | Tabs, splits, blocks, parsers, smart actions, runbooks (full), keychain secrets |
+| **v1.0** | Hardened release for macOS + Linux, signed installers, theme import, accessibility pass |
+| **v1.1** | AI integration (`Cmd+K`, NL → shell, BYO providers: Ollama / Claude / OpenAI) |
+| **v1.2** | Windows + WSL |
+| **v1.3** | SSH panes + remote pane-to-pane drag-drop file transfer |
 
-See [`docs/execution-plan.md`](./docs/execution-plan.md) for the per-phase breakdown.
+See [`docs/execution-plan.md`](./docs/execution-plan.md) for the per-phase delivery breakdown.
+
+---
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md). The project is being built in the open by a small (currently solo) team — contributions, feedback, and design critiques are all welcome via Issues and Discussions.
+The project is being built in the open by a small (currently solo) team. Bug reports, feature requests, design critiques, and PRs are all welcome.
+
+- Read the product spec: [`docs/specs.md`](./docs/specs.md)
+- Set up your dev environment + project conventions: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
+- AI-assist guardrails (Claude Code, Copilot, etc.): [`AGENTS.md`](./AGENTS.md)
 
 ## License
 
-[Apache 2.0](./LICENSE).
+[Apache 2.0](./LICENSE). See [`NOTICE`](./NOTICE) for attribution.
+```

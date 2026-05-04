@@ -17,7 +17,7 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Blaze contributors"]
-repository = "https://github.com/baliganikhil/blaze"
+repository = "https://github.com/omnibus-acik/blaze-terminal"
 rust-version = "1.80"
 
 [workspace.dependencies]
