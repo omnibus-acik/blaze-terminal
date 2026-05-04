@@ -40,6 +40,11 @@ pub enum BlazeVtEvent {
     /// OSC 7331;cond;<id>:skip — emitted when the condition exits non-zero,
     /// meaning the step is being skipped.
     ConditionSkip { id: String },
+    /// OSC 7331;cwd;<base64> — current working directory of the pane,
+    /// emitted on every prompt by the shell-integration snippet. Used by
+    /// drag-drop pane-to-pane transfers to resolve relative paths and to
+    /// know where the destination's `cp`/`rsync` should land.
+    Cwd { path: String },
 }
 
 #[derive(Debug, Default)]
@@ -208,6 +213,14 @@ fn parse_7331(body: &str) -> Option<BlazeVtEvent> {
                 _ => None,
             }
         }
+        "cwd" => {
+            let bytes = BASE64.decode(value).ok()?;
+            let path = String::from_utf8(bytes).ok()?;
+            if path.is_empty() {
+                return None;
+            }
+            Some(BlazeVtEvent::Cwd { path })
+        }
         _ => None,
     }
 }
@@ -334,5 +347,15 @@ mod tests {
         let mut p = OscParser::new();
         assert!(p.feed(b"\x1b]7331;cond;step:weird\x07").is_empty());
         assert!(p.feed(b"\x1b]7331;cond;:ok\x07").is_empty());
+    }
+
+    #[test]
+    fn parses_7331_cwd() {
+        let mut p = OscParser::new();
+        // base64("/Users/me/work") = "L1VzZXJzL21lL3dvcms="
+        assert_eq!(
+            p.feed(b"\x1b]7331;cwd;L1VzZXJzL21lL3dvcms=\x07"),
+            vec![BlazeVtEvent::Cwd { path: "/Users/me/work".to_string() }]
+        );
     }
 }

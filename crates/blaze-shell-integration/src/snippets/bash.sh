@@ -2,10 +2,17 @@
 # Uses PROMPT_COMMAND for precmd and the DEBUG trap for preexec.
 
 if [[ -n "${BASH_VERSION:-}" ]]; then
+    __blaze_emit_cwd() {
+        local cwd_b64
+        cwd_b64=$(printf '%s' "$PWD" | base64 | tr -d '\n')
+        printf '\e]7331;cwd;%s\a' "$cwd_b64"
+    }
+
     __blaze_precmd() {
         local exit=$?
         printf '\e]133;D;%s\a' "$exit"
         printf '\e]133;A\a'
+        __blaze_emit_cwd
     }
 
     __blaze_preexec() {

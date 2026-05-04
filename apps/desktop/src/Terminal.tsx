@@ -29,6 +29,13 @@ import type { ParsedEvent, PickerAction } from "./state/parsed";
 import { ParsedPicker, type SmartActionInvoke } from "./components/ParsedPicker";
 import { smartActionFor } from "./state/smartActions";
 import { indexParsedBlock, type LinkIndex } from "./linkIndex";
+import { setCwd as setCwdInMap, getCwd } from "./state/cwdMap";
+import { TRANSFER_MIME, dispatchTransferRequest, type TransferPayload } from "./state/transfer";
+
+interface BlockEventCwd {
+  kind: "cwd";
+  path: string;
+}
 
 interface TerminalProps {
   sessionId: string;
@@ -159,9 +166,16 @@ export function Terminal({ sessionId, active }: TerminalProps) {
         term.write(decodeBase64(event.payload));
       });
 
-      unlistenBlock = await listen<BlockEvent>(`pty:${sessionId}:block`, (event) => {
-        applyBlockEvent(term, blocksRef.current, event.payload);
-      });
+      unlistenBlock = await listen<BlockEvent | BlockEventCwd>(
+        `pty:${sessionId}:block`,
+        (event) => {
+          if (event.payload.kind === "cwd") {
+            setCwdInMap(sessionId, event.payload.path);
+            return;
+          }
+          applyBlockEvent(term, blocksRef.current, event.payload as BlockEvent);
+        }
+      );
 
       unlistenParsed = await listen<ParsedEvent>(`pty:${sessionId}:parsed`, (event) => {
         // Attach to the most recent block (running OR done) — Tauri doesn't
@@ -404,8 +418,46 @@ export function Terminal({ sessionId, active }: TerminalProps) {
     }
   };
 
+  // ---- Drop target: receive a Blaze pane-to-pane transfer ----
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes(TRANSFER_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    e.currentTarget.classList.add("drop-target");
+  };
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.currentTarget.classList.remove("drop-target");
+  };
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.currentTarget.classList.remove("drop-target");
+    const raw = e.dataTransfer.getData(TRANSFER_MIME);
+    if (!raw) return;
+    e.preventDefault();
+    let payload: TransferPayload;
+    try {
+      payload = JSON.parse(raw) as TransferPayload;
+    } catch (err) {
+      console.warn("invalid transfer payload:", err);
+      return;
+    }
+    if (payload.sourcePaneId === sessionId) {
+      // Self-drop is a no-op (per spec).
+      return;
+    }
+    dispatchTransferRequest({
+      source: payload,
+      destPaneId: sessionId,
+      destCwd: getCwd(sessionId),
+    });
+  };
+
   return (
-    <div className="terminal-host-wrapper">
+    <div
+      className="terminal-host-wrapper"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div ref={containerRef} className="terminal-host" />
       {searchOpen && (
         <SearchBar
@@ -430,6 +482,7 @@ export function Terminal({ sessionId, active }: TerminalProps) {
         <ParsedPicker
           parsed={pickerBlock.parsed}
           command={pickerBlock.capturedCommand ?? ""}
+          sourcePaneId={sessionId}
           onAction={handlePickerAction}
           onClose={() => setPickerBlock(null)}
         />

@@ -1,0 +1,93 @@
+.transfer-dialog {
+  width: min(560px, 92vw);
+  background-color: #14181f;
+  border: 1px solid #2a3340;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 13px;
+  color: #f0f0f0;
+}
+
+.transfer-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+}
+
+.transfer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.transfer-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7a8696;
+}
+
+.transfer-value {
+  background-color: #0a0e14;
+  border: 1px solid #1a2230;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  color: #d6e0f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transfer-cmd {
+  color: #93c5fd;
+  border-color: #34466a;
+  background-color: #0c1628;
+}
+
+.transfer-warning {
+  margin: 0 16px 8px;
+  padding: 8px 10px;
+  background-color: #3a2a0a;
+  border: 1px solid #5b4318;
+  border-radius: 6px;
+  color: #fde68a;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.transfer-warning code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  background-color: #2a1f08;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+/* Drop indicator on a pane — applied via JS while a Blaze drag hovers it. */
+.terminal-host-wrapper.drop-target::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 2px dashed #3b82f6;
+  border-radius: 6px;
+  background-color: rgba(59, 130, 246, 0.08);
+  pointer-events: none;
+  z-index: 5;
+  animation: drop-pulse 800ms ease-in-out infinite;
+}
+
+@keyframes drop-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}

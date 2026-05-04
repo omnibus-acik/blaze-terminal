@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { pickerItems, type ParsedBlock, type PickerAction, type PickerItem } from "../state/parsed";
 import { smartActionFor, type ResolvedAction } from "../state/smartActions";
+import { TRANSFER_MIME, type TransferPayload } from "../state/transfer";
+import { getCwd } from "../state/cwdMap";
 import "./parsed-picker.css";
 
 export type { PickerAction };
@@ -18,13 +20,22 @@ export interface SmartActionInvoke {
 interface ParsedPickerProps {
   parsed: ParsedBlock;
   command: string;
+  /** PTY session id this picker belongs to — used as the source paneId
+   * when the user starts a drag from a row. */
+  sourcePaneId: string;
   onAction: (action: PickerAction | SmartActionInvoke) => void;
   onClose: () => void;
 }
 
 const isMac = navigator.platform.toLowerCase().includes("mac");
 
-export function ParsedPicker({ parsed, command, onAction, onClose }: ParsedPickerProps) {
+export function ParsedPicker({
+  parsed,
+  command,
+  sourcePaneId,
+  onAction,
+  onClose,
+}: ParsedPickerProps) {
   const [filter, setFilter] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
   const [modHeld, setModHeld] = useState(false);
@@ -178,6 +189,22 @@ export function ParsedPicker({ parsed, command, onAction, onClose }: ParsedPicke
                   key={item.id}
                   data-idx={idx}
                   className={`picker-row ${isActive ? "picker-row-active" : ""}`}
+                  draggable={item.path !== null}
+                  onDragStart={(e) => {
+                    if (!item.path) return;
+                    const payload: TransferPayload = {
+                      sourcePaneId,
+                      sourceCwd: getCwd(sourcePaneId),
+                      sourcePath: item.path,
+                      label: item.label,
+                      isDir: item.icon === "📁",
+                    };
+                    e.dataTransfer.effectAllowed = "copy";
+                    e.dataTransfer.setData(TRANSFER_MIME, JSON.stringify(payload));
+                    // Close the modal so the user can see and drop on
+                    // panes underneath.
+                    onClose();
+                  }}
                   onPointerEnter={() => setActiveIdx(idx)}
                   onClick={(e) => fire(item, isMac ? e.metaKey : e.ctrlKey)}
                 >

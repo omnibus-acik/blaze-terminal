@@ -143,6 +143,7 @@ cursor_blink = true
 | `⌘ + J`                | Open the parsed-block picker (last `ls -l`, `find`, `grep`, `git status`)        |
 | Click on a folder name | `cd` into it                                                                     |
 | `⌘ + click` on a file  | Smart action (tail log, edit config, render Markdown, open image, list archive…) |
+| Drag a row from `⌘+J`  | Drop on another pane → preview + copy across panes (uses each pane's cwd)        |
 
 ### Runbooks
 
