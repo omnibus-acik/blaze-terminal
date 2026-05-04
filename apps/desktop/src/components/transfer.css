@@ -131,6 +131,50 @@
   color: #fde68a;
 }
 
+.terminal-host-wrapper.drop-target.drop-target-symlink::after {
+  content: "symlink";
+  border-color: #10b981;
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #6ee7b7;
+}
+
+.transfer-danger {
+  margin: 0 16px 8px;
+  padding: 10px 12px;
+  background-color: #4c1d1d;
+  border: 1px solid #7f1d1d;
+  border-radius: 6px;
+  color: #fecaca;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.transfer-danger strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.transfer-danger code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  background-color: #2a0e0e;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: #fecaca;
+}
+
+.transfer-safety-input {
+  margin-top: 8px;
+  background-color: #2a0e0e !important;
+  border-color: #7f1d1d !important;
+  color: #fecaca !important;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace !important;
+  letter-spacing: 0.08em;
+}
+
+.transfer-safety-input:focus {
+  border-color: #f87171 !important;
+}
+
 @keyframes drop-pulse {
   0%,
   100% {

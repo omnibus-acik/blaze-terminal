@@ -428,20 +428,31 @@ export function Terminal({ sessionId, active }: TerminalProps) {
   };
 
   // ---- Drop target: receive a Blaze pane-to-pane transfer ----
+  const modeFromEvent = (e: { altKey: boolean; shiftKey: boolean }): TransferMode => {
+    // Alt = symlink takes priority over Shift = move (matches macOS Finder).
+    if (e.altKey) return "symlink";
+    if (e.shiftKey) return "move";
+    return "copy";
+  };
+
+  const applyDropClasses = (el: HTMLElement, mode: TransferMode, isHover: boolean) => {
+    el.classList.toggle("drop-target", isHover);
+    el.classList.toggle("drop-target-move", isHover && mode === "move");
+    el.classList.toggle("drop-target-symlink", isHover && mode === "symlink");
+  };
+
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     if (!e.dataTransfer.types.includes(TRANSFER_MIME)) return;
     e.preventDefault();
-    // Reflect the active modifier in the drop cursor: Shift = move,
-    // otherwise copy. Spec §5.6.1: drag default is copy; Shift = move.
-    e.dataTransfer.dropEffect = e.shiftKey ? "move" : "copy";
-    e.currentTarget.classList.add("drop-target");
-    e.currentTarget.classList.toggle("drop-target-move", e.shiftKey);
+    const mode = modeFromEvent(e);
+    e.dataTransfer.dropEffect = mode === "symlink" ? "link" : mode === "move" ? "move" : "copy";
+    applyDropClasses(e.currentTarget, mode, true);
   };
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove("drop-target", "drop-target-move");
+    applyDropClasses(e.currentTarget, "copy", false);
   };
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove("drop-target", "drop-target-move");
+    applyDropClasses(e.currentTarget, "copy", false);
     const raw = e.dataTransfer.getData(TRANSFER_MIME);
     if (!raw) return;
     e.preventDefault();
@@ -456,12 +467,12 @@ export function Terminal({ sessionId, active }: TerminalProps) {
       // Self-drop is a no-op (per spec).
       return;
     }
-    const mode: TransferMode = e.shiftKey ? "move" : "copy";
     dispatchTransferRequest({
       source: payload,
       destPaneId: sessionId,
       destCwd: getCwd(sessionId),
-      mode,
+      mode: modeFromEvent(e),
+      conflict: "overwrite",
     });
   };
 
