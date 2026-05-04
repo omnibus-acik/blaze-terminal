@@ -53,12 +53,38 @@ pub struct RunbooksCfg {
     pub dir: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AiCfg {
+    /// True to wire up Cmd+K. False (default) makes Cmd+K show a setup
+    /// hint pointing at this section of the config.
+    pub enabled: bool,
+    /// Provider id — only `"ollama"` is recognised in v0.1.
+    pub provider: String,
+    /// Local Ollama base URL.
+    pub host: String,
+    /// Model name as registered with `ollama pull`.
+    pub model: String,
+}
+
+impl Default for AiCfg {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            provider: "ollama".to_string(),
+            host: "http://localhost:11434".to_string(),
+            model: "llama3.2".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub appearance: Appearance,
     pub terminal: TerminalCfg,
     pub runbooks: RunbooksCfg,
+    pub ai: AiCfg,
 }
 
 pub fn config_dir() -> Option<PathBuf> {

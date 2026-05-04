@@ -141,6 +141,7 @@ cursor_blink = true
 | `⌘ + Shift + O`         | Copy last output                                                                   |
 | `⌘ + R`                 | Rerun last command                                                                 |
 | `⌘ + J`                 | Open the parsed-block picker (last `ls -l`, `find`, `grep`, `git status`)          |
+| `⌘ + K`                 | AI translate (English → shell command, local Ollama; opt-in via `[ai]` config)     |
 | Click on a folder name  | `cd` into it                                                                       |
 | `⌘ + click` on a file   | Smart action (tail log, edit config, render Markdown, open image, list archive…)   |
 | Drag a file/folder name | Drop on another pane → confirm sheet · `Shift`=move, `Alt`=symlink, otherwise copy |

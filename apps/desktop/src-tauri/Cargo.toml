@@ -23,6 +23,7 @@ blaze-shell-integration = { path = "../../../crates/blaze-shell-integration" }
 blaze-parsers = { path = "../../../crates/blaze-parsers" }
 blaze-actions = { path = "../../../crates/blaze-actions" }
 blaze-runbook = { path = "../../../crates/blaze-runbook" }
+blaze-ai = { path = "../../../crates/blaze-ai" }
 parking_lot = "0.12"
 tracing = "0.1"
 base64 = "0.22"

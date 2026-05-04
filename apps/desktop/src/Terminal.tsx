@@ -38,6 +38,7 @@ import {
 } from "./state/transfer";
 import { disposeLinkDecorations, installLinkDecorations } from "./decorations";
 import type { LinkEntry } from "./linkIndex";
+import { AiPrompt } from "./components/AiPrompt";
 
 interface BlockEventCwd {
   kind: "cwd";
@@ -81,6 +82,7 @@ export function Terminal({ sessionId, active }: TerminalProps) {
   } | null>(null);
   const [pickerBlock, setPickerBlock] = useState<TrackedBlock | null>(null);
   const [saveSnapshots, setSaveSnapshots] = useState<BlockSnapshot[] | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -342,6 +344,13 @@ export function Terminal({ sessionId, active }: TerminalProps) {
         return;
       }
 
+      // Cmd/Ctrl+K → open AI translate prompt
+      if (!e.shiftKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        e.stopPropagation();
+        setAiOpen(true);
+        return;
+      }
       // Cmd/Ctrl+J → open parsed-block picker for last block with a result
       if (!e.shiftKey && e.key.toLowerCase() === "j") {
         e.preventDefault();
@@ -520,6 +529,16 @@ export function Terminal({ sessionId, active }: TerminalProps) {
             showToast(`Saved: ${result.filename}`);
           }}
           onClose={() => setSaveSnapshots(null)}
+        />
+      )}
+      {aiOpen && (
+        <AiPrompt
+          onRun={(cmd) => {
+            invoke("pty_write", { id: sessionId, data: cmd.trimEnd() + "\r" }).catch((err) =>
+              console.error("pty_write failed:", err)
+            );
+          }}
+          onClose={() => setAiOpen(false)}
         />
       )}
     </div>

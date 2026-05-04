@@ -1,3 +1,4 @@
+mod ai;
 mod pty;
 mod runbooks;
 mod secrets;
@@ -27,6 +28,8 @@ pub fn run() {
             secrets::secret_get,
             secrets::secret_set,
             secrets::secret_delete,
+            ai::ai_translate,
+            ai::ai_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
