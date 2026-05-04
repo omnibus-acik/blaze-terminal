@@ -1,0 +1,19 @@
+# Blaze user config — copy to ~/.config/blaze/config.toml and edit.
+# All fields are optional; missing or unparseable values fall back to defaults.
+
+[appearance]
+# Comma-separated CSS-style font stack. Use a programming ligature font here
+# if you have one (e.g. "JetBrains Mono", "Fira Code").
+font_family = 'ui-monospace, "SF Mono", Menlo, "Cascadia Mono", monospace'
+font_size = 13
+line_height = 1.2
+
+[terminal]
+# Lines of scrollback to retain per pane. 100k is plenty for daily use.
+scrollback_lines = 100000
+
+# Path to the shell binary. Leave unset (or empty) to use $SHELL,
+# falling back to /bin/zsh.
+# shell = "/opt/homebrew/bin/fish"
+
+cursor_blink = true

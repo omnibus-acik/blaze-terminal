@@ -1,0 +1,475 @@
+import { useEffect, useRef, useState } from "react";
+import { Terminal as XTerm } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
+import { ClipboardAddon } from "@xterm/addon-clipboard";
+import { SearchAddon } from "@xterm/addon-search";
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import "@xterm/xterm/css/xterm.css";
+import "./Terminal.css";
+import { useSettings } from "./state/SettingsContext";
+import { SearchBar } from "./components/SearchBar";
+import { showToast } from "./components/Toast";
+import {
+  applyBlockEvent,
+  attachParsedToLastActive,
+  commandFor,
+  disposeBlocks,
+  jumpToBlock,
+  lastDoneBlock,
+  readBlockOutput,
+  recentBlockSnapshots,
+  type BlockEvent,
+  type BlockSnapshot,
+  type TrackedBlock,
+} from "./blocks";
+import { SaveRunbookDialog } from "./components/SaveRunbookDialog";
+import type { ParsedEvent, PickerAction } from "./state/parsed";
+import { ParsedPicker, type SmartActionInvoke } from "./components/ParsedPicker";
+import { smartActionFor } from "./state/smartActions";
+import { indexParsedBlock, type LinkIndex } from "./linkIndex";
+
+interface TerminalProps {
+  sessionId: string;
+  active: boolean;
+}
+
+const isMacPlatform = navigator.platform.toLowerCase().includes("mac");
+
+const decodeBase64 = (b64: string): Uint8Array => {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+};
+
+export function Terminal({ sessionId, active }: TerminalProps) {
+  const settings = useSettings();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const termRef = useRef<XTerm | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  const searchRef = useRef<SearchAddon | null>(null);
+  const blocksRef = useRef<TrackedBlock[]>([]);
+  const linkIndexRef = useRef<LinkIndex>(new Map());
+  // handlePickerAction is recreated each render; the link provider closes
+  // over a ref so it always invokes the current handler.
+  const actionHandlerRef = useRef<((action: PickerAction | SmartActionInvoke) => void) | null>(
+    null
+  );
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<{
+    resultIndex: number;
+    resultCount: number;
+  } | null>(null);
+  const [pickerBlock, setPickerBlock] = useState<TrackedBlock | null>(null);
+  const [saveSnapshots, setSaveSnapshots] = useState<BlockSnapshot[] | null>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const term = new XTerm({
+      fontFamily: settings.appearance.font_family,
+      fontSize: settings.appearance.font_size,
+      lineHeight: settings.appearance.line_height,
+      cursorBlink: settings.terminal.cursor_blink,
+      allowProposedApi: true,
+      theme: {
+        background: "#0a0a0a",
+        foreground: "#f0f0f0",
+        cursor: "#f0f0f0",
+        selectionBackground: "#3a3a3a",
+      },
+      scrollback: settings.terminal.scrollback_lines,
+    });
+
+    const fitAddon = new FitAddon();
+    const clipboardAddon = new ClipboardAddon();
+    const searchAddon = new SearchAddon();
+    term.loadAddon(fitAddon);
+    term.loadAddon(clipboardAddon);
+    term.loadAddon(searchAddon);
+    term.open(container);
+
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
+    } catch (e) {
+      console.warn("WebGL renderer unavailable, using DOM:", e);
+    }
+
+    fitAddon.fit();
+    termRef.current = term;
+    fitRef.current = fitAddon;
+    searchRef.current = searchAddon;
+
+    searchAddon.onDidChangeResults((event) => setSearchResults(event ?? null));
+
+    // Register the inline-link provider. Reads from linkIndexRef which is
+    // populated by `indexParsedBlock` on each `pty:<id>:parsed` event.
+    // Plain click → default action (cd / open / copy).
+    // Cmd/Ctrl-click → smart action (tail -f log, edit config, etc.).
+    const linkDisposable = term.registerLinkProvider({
+      provideLinks(lineNumber, callback) {
+        const entries = linkIndexRef.current.get(lineNumber);
+        if (!entries || entries.length === 0) {
+          callback([]);
+          return;
+        }
+        const links = entries.map((e) => ({
+          range: {
+            start: { x: e.startCol, y: lineNumber },
+            end: { x: e.endCol, y: lineNumber },
+          },
+          text: e.text,
+          decorations: { pointerCursor: true, underline: true },
+          activate: (event: MouseEvent) => {
+            const handler = actionHandlerRef.current;
+            if (!handler) return;
+            const wantSmart = isMacPlatform ? event.metaKey : event.ctrlKey;
+            if (wantSmart && e.item.path) {
+              smartActionFor(e.item.path).then((resolved) => {
+                if (resolved) {
+                  handler({ kind: "smart", resolved });
+                } else {
+                  handler(e.item.defaultAction);
+                }
+              });
+            } else {
+              handler(e.item.defaultAction);
+            }
+          },
+        }));
+        callback(links);
+      },
+    });
+
+    let unlistenData: UnlistenFn | null = null;
+    let unlistenBlock: UnlistenFn | null = null;
+    let unlistenParsed: UnlistenFn | null = null;
+    let unlistenExit: UnlistenFn | null = null;
+    let cancelled = false;
+
+    (async () => {
+      unlistenData = await listen<string>(`pty:${sessionId}:data`, (event) => {
+        term.write(decodeBase64(event.payload));
+      });
+
+      unlistenBlock = await listen<BlockEvent>(`pty:${sessionId}:block`, (event) => {
+        applyBlockEvent(term, blocksRef.current, event.payload);
+      });
+
+      unlistenParsed = await listen<ParsedEvent>(`pty:${sessionId}:parsed`, (event) => {
+        // Attach to the most recent block (running OR done) — Tauri doesn't
+        // guarantee cross-channel ordering, so the block_event for OutputEnd
+        // may still be in flight when this fires.
+        const target = attachParsedToLastActive(blocksRef.current, event.payload.parsed);
+        if (!target || target.outputStartLine === null) return;
+        // Use the cursor position as a fallback for outputEndLine if the
+        // block_event hasn't been processed yet.
+        const buf = term.buffer.active;
+        const endLine = target.outputEndLine ?? buf.baseY + buf.cursorY;
+        indexParsedBlock(
+          term,
+          event.payload.parsed,
+          target.outputStartLine,
+          endLine,
+          linkIndexRef.current
+        );
+        term.refresh(0, term.rows - 1);
+      });
+
+      unlistenExit = await listen<{ id: string }>(`pty:${sessionId}:exit`, () => {
+        term.writeln("\r\n\x1b[2m[process exited]\x1b[0m");
+      });
+
+      if (cancelled) return;
+      try {
+        await invoke("pty_spawn", {
+          args: {
+            id: sessionId,
+            cols: term.cols,
+            rows: term.rows,
+            shell: settings.terminal.shell,
+          },
+        });
+      } catch (e) {
+        term.writeln(`\r\n\x1b[31mfailed to spawn pty: ${String(e)}\x1b[0m`);
+      }
+    })();
+
+    const dataDisposable = term.onData((data) => {
+      invoke("pty_write", { id: sessionId, data }).catch((e) =>
+        console.error("pty_write failed:", e)
+      );
+    });
+
+    const resizeDisposable = term.onResize(({ cols, rows }) => {
+      invoke("pty_resize", { id: sessionId, cols, rows }).catch((e) =>
+        console.error("pty_resize failed:", e)
+      );
+    });
+
+    const ro = new ResizeObserver(() => {
+      try {
+        fitAddon.fit();
+      } catch {
+        /* hidden container; ignore */
+      }
+    });
+    ro.observe(container);
+
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+      dataDisposable.dispose();
+      resizeDisposable.dispose();
+      linkDisposable.dispose();
+      unlistenData?.();
+      unlistenBlock?.();
+      unlistenParsed?.();
+      unlistenExit?.();
+      invoke("pty_kill", { id: sessionId }).catch(() => {});
+      disposeBlocks(blocksRef.current);
+      linkIndexRef.current.clear();
+      term.dispose();
+      termRef.current = null;
+      fitRef.current = null;
+      searchRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (active && !searchOpen) termRef.current?.focus();
+  }, [active, searchOpen]);
+
+  // Active-pane shortcuts: search, block nav, block actions.
+  useEffect(() => {
+    if (!active) return;
+    const isMac = navigator.platform.toLowerCase().includes("mac");
+
+    const onKey = async (e: KeyboardEvent) => {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (!mod || e.altKey) return;
+
+      if (!e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        e.stopPropagation();
+        setSearchOpen(true);
+        return;
+      }
+      if (!e.shiftKey && (e.key === "[" || e.key === "]")) {
+        const term = termRef.current;
+        if (!term) return;
+        jumpToBlock(term, blocksRef.current, e.key === "[" ? -1 : 1);
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // Block actions — operate on the most recently completed block.
+      const term = termRef.current;
+      if (!term) return;
+      const block = lastDoneBlock(blocksRef.current);
+
+      // Cmd/Ctrl+Shift+K → copy command of last block
+      if (e.shiftKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!block) {
+          showToast("No completed block yet");
+          return;
+        }
+        const cmd = commandFor(term, block);
+        await copyToClipboard(cmd);
+        showToast(cmd ? `Copied command: ${truncate(cmd)}` : "Empty command");
+        return;
+      }
+      // Cmd/Ctrl+Shift+O → copy output of last block
+      if (e.shiftKey && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!block) {
+          showToast("No completed block yet");
+          return;
+        }
+        const out = readBlockOutput(term, block);
+        await copyToClipboard(out);
+        const lines = out ? out.split("\n").length : 0;
+        showToast(out ? `Copied output (${lines} line${lines === 1 ? "" : "s"})` : "Empty output");
+        return;
+      }
+      // Cmd/Ctrl+Shift+S → save selected blocks as runbook
+      if (e.shiftKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        e.stopPropagation();
+        const term = termRef.current;
+        if (!term) return;
+        const snaps = recentBlockSnapshots(term, blocksRef.current, 25);
+        if (snaps.length === 0) {
+          showToast("No completed commands to save");
+          return;
+        }
+        setSaveSnapshots(snaps);
+        return;
+      }
+
+      // Cmd/Ctrl+J → open parsed-block picker for last block with a result
+      if (!e.shiftKey && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        e.stopPropagation();
+        const blocks = blocksRef.current;
+        const target = [...blocks].reverse().find((b) => b.parsed !== null);
+        if (!target) {
+          showToast("No parsed block (try `ls -l`)");
+          return;
+        }
+        setPickerBlock(target);
+        return;
+      }
+      // Cmd/Ctrl+R → rerun last command
+      if (!e.shiftKey && e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!block) {
+          showToast("No completed block to rerun");
+          return;
+        }
+        const cmd = commandFor(term, block);
+        if (!cmd) {
+          showToast("Could not extract command");
+          return;
+        }
+        await invoke("pty_write", { id: sessionId, data: cmd + "\r" }).catch((err) =>
+          console.error("pty_write failed:", err)
+        );
+        showToast(`Rerun: ${truncate(cmd)}`);
+      }
+    };
+    window.addEventListener("keydown", onKey, { capture: true });
+    return () => window.removeEventListener("keydown", onKey, { capture: true });
+  }, [active, sessionId]);
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setSearchTerm("");
+    setSearchResults(null);
+    searchRef.current?.clearDecorations();
+    termRef.current?.focus();
+  };
+
+  // Keep the ref pointing at the latest handler so the link provider —
+  // which is registered once on mount — always invokes the current closure.
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  actionHandlerRef.current = (action) => void handlePickerAction(action);
+
+  const handlePickerAction = async (action: PickerAction | SmartActionInvoke) => {
+    const write = (cmd: string) => invoke("pty_write", { id: sessionId, data: `${cmd}\r` });
+    if (action.kind === "smart") {
+      // Smart action commands are pre-resolved + shell-quoted by Rust.
+      await write(action.resolved.command);
+      showToast(`${action.resolved.label}: ${truncate(action.resolved.command, 60)}`);
+      return;
+    }
+    switch (action.kind) {
+      case "cd":
+        await write(`cd ${shellQuote(action.path)} && ls`);
+        break;
+      case "open":
+        await write(`open ${shellQuote(action.path)}`);
+        break;
+      case "open_at_line":
+        // ${EDITOR:-vim} +<line> <path> — works for vim/nvim/nano/code-as-CLI
+        // Tradeoff: requires the user's $EDITOR to support `+N` line jumps.
+        await write(`\${EDITOR:-vim} +${action.line} ${shellQuote(action.path)}`);
+        break;
+      case "git_diff":
+        await write(`git diff -- ${shellQuote(action.path)}`);
+        break;
+      case "git_add":
+        await write(`git add -- ${shellQuote(action.path)}`);
+        break;
+      case "git_restore":
+        await write(`git restore -- ${shellQuote(action.path)}`);
+        break;
+      case "copy":
+        await copyToClipboard(action.text);
+        showToast(`Copied: ${truncate(action.text)}`);
+        break;
+    }
+  };
+
+  return (
+    <div className="terminal-host-wrapper">
+      <div ref={containerRef} className="terminal-host" />
+      {searchOpen && (
+        <SearchBar
+          value={searchTerm}
+          matchCount={searchResults}
+          onChange={(v) => {
+            setSearchTerm(v);
+            if (v) searchRef.current?.findNext(v, { incremental: true, decorations: SEARCH_DECOR });
+            else searchRef.current?.clearDecorations();
+          }}
+          onNext={() => {
+            if (searchTerm) searchRef.current?.findNext(searchTerm, { decorations: SEARCH_DECOR });
+          }}
+          onPrev={() => {
+            if (searchTerm)
+              searchRef.current?.findPrevious(searchTerm, { decorations: SEARCH_DECOR });
+          }}
+          onClose={closeSearch}
+        />
+      )}
+      {pickerBlock && pickerBlock.parsed && (
+        <ParsedPicker
+          parsed={pickerBlock.parsed}
+          command={pickerBlock.capturedCommand ?? ""}
+          onAction={handlePickerAction}
+          onClose={() => setPickerBlock(null)}
+        />
+      )}
+      {saveSnapshots && (
+        <SaveRunbookDialog
+          snapshots={saveSnapshots}
+          onSaved={(result) => {
+            setSaveSnapshots(null);
+            showToast(`Saved: ${result.filename}`);
+          }}
+          onClose={() => setSaveSnapshots(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Quote a path for safe inclusion in a shell command. Wraps in single
+ * quotes and escapes any embedded single quotes via `'\''` — works for any
+ * POSIX shell. */
+function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, "'\\''")}'`;
+}
+
+async function copyToClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    console.error("clipboard write failed:", e);
+  }
+}
+
+const truncate = (s: string, n = 60): string => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+const SEARCH_DECOR = {
+  matchBackground: "#3b82f680",
+  matchBorder: "#3b82f6",
+  matchOverviewRuler: "#3b82f6",
+  activeMatchBackground: "#f59e0bcc",
+  activeMatchBorder: "#f59e0b",
+  activeMatchColorOverviewRuler: "#f59e0b",
+};

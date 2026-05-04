@@ -1,0 +1,31 @@
+[package]
+name = "blaze-desktop"
+version = "0.1.0"
+description = "Blaze — smart terminal emulator (desktop app)"
+authors = ["Blaze contributors"]
+license = "Apache-2.0"
+edition = "2021"
+
+[lib]
+name = "blaze_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+blaze-pty = { path = "../../../crates/blaze-pty" }
+blaze-vt = { path = "../../../crates/blaze-vt" }
+blaze-shell-integration = { path = "../../../crates/blaze-shell-integration" }
+blaze-parsers = { path = "../../../crates/blaze-parsers" }
+blaze-actions = { path = "../../../crates/blaze-actions" }
+blaze-runbook = { path = "../../../crates/blaze-runbook" }
+parking_lot = "0.12"
+tracing = "0.1"
+base64 = "0.22"
+toml = "0.8"
+dirs = "5"
+keyring = { version = "3", features = ["apple-native", "linux-native", "windows-native"] }

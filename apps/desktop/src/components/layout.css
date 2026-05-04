@@ -1,0 +1,141 @@
+.tab-bar {
+  display: flex;
+  align-items: stretch;
+  background-color: #161616;
+  border-bottom: 1px solid #2a2a2a;
+  padding: 0 4px;
+  height: 34px;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+
+.tab-bar > * {
+  -webkit-app-region: no-drag;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  margin: 4px 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #a0a0a0;
+  font-size: 12.5px;
+  user-select: none;
+  max-width: 220px;
+  transition: background-color 120ms ease;
+}
+
+.tab:hover {
+  background-color: #1f1f1f;
+}
+
+.tab-active {
+  background-color: #2a2a2a;
+  color: #f0f0f0;
+}
+
+.tab-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.tab:hover .tab-close,
+.tab-active .tab-close {
+  opacity: 0.7;
+}
+
+.tab-close:hover {
+  background-color: #3a3a3a;
+  opacity: 1;
+}
+
+.tab-new {
+  background: none;
+  border: none;
+  color: #707070;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 12px;
+  margin: 4px 4px 4px 2px;
+  border-radius: 6px;
+  align-self: stretch;
+}
+
+.tab-new:hover {
+  background-color: #1f1f1f;
+  color: #f0f0f0;
+}
+
+.tab-content {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.split {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.split-child {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.splitter {
+  background-color: #161616;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.splitter:hover,
+.splitter:active {
+  background-color: #3b82f6;
+}
+
+.splitter-horizontal {
+  width: 3px;
+  cursor: col-resize;
+}
+
+.splitter-vertical {
+  height: 3px;
+  cursor: row-resize;
+}
+
+.pane {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+
+.pane-active {
+  border-color: #3b82f6;
+}

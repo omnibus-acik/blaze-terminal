@@ -1,0 +1,33 @@
+{
+  "name": "blaze",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Blaze — smart terminal emulator",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baliganikhil/blaze.git"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @blaze/desktop tauri:dev",
+    "build": "pnpm --filter @blaze/desktop tauri:build",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "fmt": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css,html}\"",
+    "fmt:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css,html}\"",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.3.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,md,css,html}": "prettier --write",
+    "*.rs": "rustfmt --edition 2021"
+  },
+  "packageManager": "pnpm@10.6.3",
+  "engines": {
+    "node": ">=20"
+  }
+}

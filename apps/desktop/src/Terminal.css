@@ -1,0 +1,100 @@
+.terminal-host-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
+.terminal-host {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  background-color: #0a0a0a;
+  box-sizing: border-box;
+}
+
+.terminal-host .xterm {
+  height: 100%;
+}
+
+.terminal-host .xterm-viewport {
+  background-color: transparent !important;
+}
+
+.search-bar {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 4px 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+  font-size: 12px;
+  color: #f0f0f0;
+}
+
+.search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f0f0f0;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 4px 6px;
+  width: 200px;
+}
+
+.search-count {
+  color: #909090;
+  font-variant-numeric: tabular-nums;
+  min-width: 50px;
+  text-align: right;
+}
+
+.search-btn {
+  background: transparent;
+  border: none;
+  color: #c0c0c0;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.search-btn:hover {
+  background-color: #2a2a2a;
+  color: #f0f0f0;
+}
+
+/* Block marker rendered in xterm's left margin (registerDecoration with x:0). */
+.blaze-block-marker {
+  width: 3px !important;
+  border-radius: 1px;
+  margin-left: 1px;
+  opacity: 0.85;
+}
+
+/* Transient highlight when jumping to a block via Cmd+[ / Cmd+]. */
+.blaze-block-flash {
+  width: 6px !important;
+  border-radius: 2px;
+  margin-left: 0;
+  animation: block-flash 700ms ease-out;
+  box-shadow: 0 0 8px #fbbf24;
+}
+
+@keyframes block-flash {
+  0% {
+    opacity: 1;
+    transform: scaleX(2);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
