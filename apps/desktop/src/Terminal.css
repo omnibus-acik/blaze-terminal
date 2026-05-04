@@ -79,6 +79,23 @@
   opacity: 0.85;
 }
 
+/* Inline file/folder name decoration — clickable + draggable, sits over
+   the rendered xterm cell range. Transparent background so the text
+   underneath stays visible; an underline hints that it's actionable. */
+.blaze-link {
+  background-color: transparent !important;
+  border-bottom: 1px dotted rgba(147, 197, 253, 0.45);
+  transition:
+    border-color 80ms ease,
+    background-color 80ms ease;
+}
+
+.blaze-link:hover {
+  background-color: rgba(59, 130, 246, 0.18) !important;
+  border-bottom-color: #93c5fd;
+  border-bottom-style: solid;
+}
+
 /* Transient highlight when jumping to a block via Cmd+[ / Cmd+]. */
 .blaze-block-flash {
   width: 6px !important;

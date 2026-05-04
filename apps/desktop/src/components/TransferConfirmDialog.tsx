@@ -1,5 +1,10 @@
-import { useEffect, useRef } from "react";
-import { buildTransferCommand, resolveSourcePath, type TransferRequest } from "../state/transfer";
+import { useEffect, useRef, useState } from "react";
+import {
+  buildTransferCommand,
+  resolveSourcePath,
+  type TransferMode,
+  type TransferRequest,
+} from "../state/transfer";
 import "./transfer.css";
 
 interface Props {
@@ -11,15 +16,14 @@ interface Props {
 /**
  * Modal that previews a pane-to-pane transfer before running it.
  *
- * Per spec §5.6.2 the confirm sheet always shows: source list, destination
- * path, the resolved command, and lets the user cancel. v0.1 ships
- * read-only — no overwrite/skip/rename toggles, no move/symlink mode (those
- * are next-batch). Dropping a file you already have at the destination
- * lets `cp -p` do its default thing (overwrite). We'll expose conflict
- * policy in a subsequent batch.
+ * Per spec §5.6.2: source, destination, resolved command, mode toggle.
+ * The user can flip copy ↔ move in the dialog if they got the modifier
+ * wrong while dragging. Conflict policy and rsync-with-progress remain
+ * deferred to a follow-up batch.
  */
 export function TransferConfirmDialog({ request, onConfirm, onCancel }: Props) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [mode, setMode] = useState<TransferMode>(request.mode);
 
   useEffect(() => {
     buttonRef.current?.focus();
@@ -27,7 +31,7 @@ export function TransferConfirmDialog({ request, onConfirm, onCancel }: Props) {
 
   const sourceAbs = resolveSourcePath(request.source);
   const destDir = request.destCwd ?? "(unknown — destination has no cwd yet)";
-  const command = buildTransferCommand(request);
+  const command = buildTransferCommand({ ...request, mode });
 
   const handleKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") {
@@ -41,6 +45,8 @@ export function TransferConfirmDialog({ request, onConfirm, onCancel }: Props) {
     }
   };
 
+  const buttonLabel = mode === "move" ? "Move" : "Copy";
+
   return (
     <div className="picker-backdrop" role="presentation" onClick={onCancel}>
       <div
@@ -53,7 +59,7 @@ export function TransferConfirmDialog({ request, onConfirm, onCancel }: Props) {
         <div className="runbook-header">
           <div className="runbook-title">
             <span aria-hidden>📦</span>
-            <span>Copy to another pane</span>
+            <span>{mode === "move" ? "Move to another pane" : "Copy to another pane"}</span>
           </div>
         </div>
         <div className="transfer-grid">
@@ -68,6 +74,18 @@ export function TransferConfirmDialog({ request, onConfirm, onCancel }: Props) {
             <code className="transfer-value" title={destDir}>
               {destDir}
             </code>
+          </div>
+          <div className="transfer-field">
+            <span className="transfer-label">Mode</span>
+            <div className="transfer-mode-row">
+              <ModePill value="copy" current={mode} onSelect={setMode} hint="Source stays put" />
+              <ModePill
+                value="move"
+                current={mode}
+                onSelect={setMode}
+                hint="Source removed after copy"
+              />
+            </div>
           </div>
           <div className="transfer-field">
             <span className="transfer-label">Command</span>
@@ -86,11 +104,12 @@ export function TransferConfirmDialog({ request, onConfirm, onCancel }: Props) {
         <div className="picker-footer">
           <span>
             <kbd>{navigator.platform.toLowerCase().includes("mac") ? "⌘" : "Ctrl"}</kbd>+
-            <kbd>Enter</kbd> to copy · <kbd>Esc</kbd> to cancel
+            <kbd>Enter</kbd> to {buttonLabel.toLowerCase()} · <kbd>Esc</kbd> to cancel · hold{" "}
+            <kbd>Shift</kbd> while dragging for move
           </span>
           <span className="picker-footer-spacer" />
           <button ref={buttonRef} className="runbook-run" onClick={() => onConfirm(command)}>
-            Copy
+            {buttonLabel}
           </button>
           <button className="si-btn" onClick={onCancel}>
             Cancel
@@ -98,5 +117,29 @@ export function TransferConfirmDialog({ request, onConfirm, onCancel }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ModePill({
+  value,
+  current,
+  hint,
+  onSelect,
+}: {
+  value: TransferMode;
+  current: TransferMode;
+  hint: string;
+  onSelect: (m: TransferMode) => void;
+}) {
+  const active = value === current;
+  return (
+    <button
+      className={`transfer-mode ${active ? "transfer-mode-active" : ""}`}
+      onClick={() => onSelect(value)}
+      title={hint}
+      type="button"
+    >
+      {value === "copy" ? "📋 Copy" : "✂️ Move"}
+    </button>
   );
 }

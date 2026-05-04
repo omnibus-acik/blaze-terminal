@@ -199,7 +199,9 @@ export function ParsedPicker({
                       label: item.label,
                       isDir: item.icon === "📁",
                     };
-                    e.dataTransfer.effectAllowed = "copy";
+                    // Source allows either; receiver's Shift state at drop
+                    // time decides copy vs move.
+                    e.dataTransfer.effectAllowed = "copyMove";
                     e.dataTransfer.setData(TRANSFER_MIME, JSON.stringify(payload));
                     // Close the modal so the user can see and drop on
                     // panes underneath.

@@ -21,10 +21,13 @@ export interface TransferPayload {
   isDir: boolean;
 }
 
+export type TransferMode = "copy" | "move";
+
 export interface TransferRequest {
   source: TransferPayload;
   destPaneId: string;
   destCwd: string | null;
+  mode: TransferMode;
 }
 
 /**
@@ -58,8 +61,14 @@ export function shellQuote(s: string): string {
 export function buildTransferCommand(req: TransferRequest): string {
   const absSrc = resolveSourcePath(req.source);
   const dst = req.destCwd ? `${req.destCwd}/` : "./";
-  // -R follows directories; -p preserves perms/timestamps. We'll switch to
-  // rsync with progress in a follow-up batch.
+  if (req.mode === "move") {
+    // mv preserves perms by default; works across filesystems via
+    // copy-then-delete. -i prompts on conflict (we'll wire conflict UI
+    // properly in a follow-up).
+    return `mv -i ${shellQuote(absSrc)} ${shellQuote(dst)}`;
+  }
+  // Default copy: -R for directories, -p for permissions/timestamps.
+  // rsync with --info=progress2 + cancel/resume comes in a follow-up.
   return `cp -Rp ${shellQuote(absSrc)} ${shellQuote(dst)}`;
 }
 

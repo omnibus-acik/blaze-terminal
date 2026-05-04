@@ -51,6 +51,36 @@
   background-color: #0c1628;
 }
 
+.transfer-mode-row {
+  display: flex;
+  gap: 6px;
+}
+
+.transfer-mode {
+  background-color: #0a0e14;
+  border: 1px solid #1a2230;
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: #c0d0ec;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 100ms ease,
+    border-color 100ms ease;
+}
+
+.transfer-mode:hover {
+  background-color: #14181f;
+  border-color: #34466a;
+}
+
+.transfer-mode-active {
+  background-color: #1c2940;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
 .transfer-warning {
   margin: 0 16px 8px;
   padding: 8px 10px;
@@ -70,8 +100,12 @@
 }
 
 /* Drop indicator on a pane — applied via JS while a Blaze drag hovers it. */
+.terminal-host-wrapper.drop-target {
+  position: relative;
+}
+
 .terminal-host-wrapper.drop-target::after {
-  content: "";
+  content: "copy";
   position: absolute;
   inset: 4px;
   border: 2px dashed #3b82f6;
@@ -80,6 +114,21 @@
   pointer-events: none;
   z-index: 5;
   animation: drop-pulse 800ms ease-in-out infinite;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #93c5fd;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: right;
+  padding: 6px 12px;
+  box-sizing: border-box;
+}
+
+.terminal-host-wrapper.drop-target.drop-target-move::after {
+  content: "move";
+  border-color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #fde68a;
 }
 
 @keyframes drop-pulse {

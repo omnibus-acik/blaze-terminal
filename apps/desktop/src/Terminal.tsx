@@ -30,7 +30,14 @@ import { ParsedPicker, type SmartActionInvoke } from "./components/ParsedPicker"
 import { smartActionFor } from "./state/smartActions";
 import { indexParsedBlock, type LinkIndex } from "./linkIndex";
 import { setCwd as setCwdInMap, getCwd } from "./state/cwdMap";
-import { TRANSFER_MIME, dispatchTransferRequest, type TransferPayload } from "./state/transfer";
+import {
+  TRANSFER_MIME,
+  dispatchTransferRequest,
+  type TransferMode,
+  type TransferPayload,
+} from "./state/transfer";
+import { disposeLinkDecorations, installLinkDecorations } from "./decorations";
+import type { LinkEntry } from "./linkIndex";
 
 interface BlockEventCwd {
   kind: "cwd";
@@ -59,6 +66,7 @@ export function Terminal({ sessionId, active }: TerminalProps) {
   const searchRef = useRef<SearchAddon | null>(null);
   const blocksRef = useRef<TrackedBlock[]>([]);
   const linkIndexRef = useRef<LinkIndex>(new Map());
+  const installedDecorationsRef = useRef<ReturnType<typeof installLinkDecorations>>([]);
   // handlePickerAction is recreated each render; the link provider closes
   // over a ref so it always invokes the current handler.
   const actionHandlerRef = useRef<((action: PickerAction | SmartActionInvoke) => void) | null>(
@@ -116,44 +124,36 @@ export function Terminal({ sessionId, active }: TerminalProps) {
 
     searchAddon.onDidChangeResults((event) => setSearchResults(event ?? null));
 
-    // Register the inline-link provider. Reads from linkIndexRef which is
-    // populated by `indexParsedBlock` on each `pty:<id>:parsed` event.
-    // Plain click → default action (cd / open / copy).
-    // Cmd/Ctrl-click → smart action (tail -f log, edit config, etc.).
-    const linkDisposable = term.registerLinkProvider({
-      provideLinks(lineNumber, callback) {
-        const entries = linkIndexRef.current.get(lineNumber);
-        if (!entries || entries.length === 0) {
-          callback([]);
-          return;
-        }
-        const links = entries.map((e) => ({
-          range: {
-            start: { x: e.startCol, y: lineNumber },
-            end: { x: e.endCol, y: lineNumber },
-          },
-          text: e.text,
-          decorations: { pointerCursor: true, underline: true },
-          activate: (event: MouseEvent) => {
-            const handler = actionHandlerRef.current;
-            if (!handler) return;
-            const wantSmart = isMacPlatform ? event.metaKey : event.ctrlKey;
-            if (wantSmart && e.item.path) {
-              smartActionFor(e.item.path).then((resolved) => {
-                if (resolved) {
-                  handler({ kind: "smart", resolved });
-                } else {
-                  handler(e.item.defaultAction);
-                }
-              });
-            } else {
-              handler(e.item.defaultAction);
-            }
-          },
-        }));
-        callback(links);
-      },
-    });
+    // Inline link interactions are powered by per-span IDecoration overlays
+    // rather than xterm's LinkProvider — the decoration's element is a real
+    // DOM node we own, which lets us attach drag handlers in addition to
+    // click/hover. Decorations are installed each time a parsed block lands
+    // (see the listener for `pty:<id>:parsed` below).
+    const onLinkClick = (entry: LinkEntry, event: MouseEvent) => {
+      const handler = actionHandlerRef.current;
+      if (!handler) return;
+      const wantSmart = isMacPlatform ? event.metaKey : event.ctrlKey;
+      if (wantSmart && entry.item.path) {
+        smartActionFor(entry.item.path).then((resolved) => {
+          if (resolved) handler({ kind: "smart", resolved });
+          else handler(entry.item.defaultAction);
+        });
+      } else {
+        handler(entry.item.defaultAction);
+      }
+    };
+    const onLinkDragStart = (entry: LinkEntry, event: DragEvent) => {
+      if (!event.dataTransfer || !entry.item.path) return;
+      const payload: TransferPayload = {
+        sourcePaneId: sessionId,
+        sourceCwd: getCwd(sessionId),
+        sourcePath: entry.item.path,
+        label: entry.item.label,
+        isDir: entry.item.icon === "📁",
+      };
+      event.dataTransfer.effectAllowed = "copyMove";
+      event.dataTransfer.setData(TRANSFER_MIME, JSON.stringify(payload));
+    };
 
     let unlistenData: UnlistenFn | null = null;
     let unlistenBlock: UnlistenFn | null = null;
@@ -187,13 +187,22 @@ export function Terminal({ sessionId, active }: TerminalProps) {
         // block_event hasn't been processed yet.
         const buf = term.buffer.active;
         const endLine = target.outputEndLine ?? buf.baseY + buf.cursorY;
-        indexParsedBlock(
+        // Index into a *fresh* per-block sub-index so installLinkDecorations
+        // only registers spans for the just-parsed block (the global
+        // linkIndexRef accumulates everything for jump-to-line callers).
+        const blockIndex: LinkIndex = new Map();
+        indexParsedBlock(term, event.payload.parsed, target.outputStartLine, endLine, blockIndex);
+        for (const [k, v] of blockIndex) {
+          const merged = (linkIndexRef.current.get(k) ?? []).concat(v);
+          linkIndexRef.current.set(k, merged);
+        }
+        const newDecorations = installLinkDecorations(
           term,
-          event.payload.parsed,
-          target.outputStartLine,
-          endLine,
-          linkIndexRef.current
+          blockIndex,
+          onLinkClick,
+          onLinkDragStart
         );
+        installedDecorationsRef.current.push(...newDecorations);
         term.refresh(0, term.rows - 1);
       });
 
@@ -242,13 +251,13 @@ export function Terminal({ sessionId, active }: TerminalProps) {
       ro.disconnect();
       dataDisposable.dispose();
       resizeDisposable.dispose();
-      linkDisposable.dispose();
       unlistenData?.();
       unlistenBlock?.();
       unlistenParsed?.();
       unlistenExit?.();
       invoke("pty_kill", { id: sessionId }).catch(() => {});
       disposeBlocks(blocksRef.current);
+      disposeLinkDecorations(installedDecorationsRef.current);
       linkIndexRef.current.clear();
       term.dispose();
       termRef.current = null;
@@ -422,14 +431,17 @@ export function Terminal({ sessionId, active }: TerminalProps) {
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     if (!e.dataTransfer.types.includes(TRANSFER_MIME)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
+    // Reflect the active modifier in the drop cursor: Shift = move,
+    // otherwise copy. Spec §5.6.1: drag default is copy; Shift = move.
+    e.dataTransfer.dropEffect = e.shiftKey ? "move" : "copy";
     e.currentTarget.classList.add("drop-target");
+    e.currentTarget.classList.toggle("drop-target-move", e.shiftKey);
   };
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove("drop-target");
+    e.currentTarget.classList.remove("drop-target", "drop-target-move");
   };
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove("drop-target");
+    e.currentTarget.classList.remove("drop-target", "drop-target-move");
     const raw = e.dataTransfer.getData(TRANSFER_MIME);
     if (!raw) return;
     e.preventDefault();
@@ -444,10 +456,12 @@ export function Terminal({ sessionId, active }: TerminalProps) {
       // Self-drop is a no-op (per spec).
       return;
     }
+    const mode: TransferMode = e.shiftKey ? "move" : "copy";
     dispatchTransferRequest({
       source: payload,
       destPaneId: sessionId,
       destCwd: getCwd(sessionId),
+      mode,
     });
   };
 

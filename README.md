@@ -134,16 +134,16 @@ cursor_blink = true
 
 ### Command blocks
 
-| Shortcut               | Action                                                                           |
-| ---------------------- | -------------------------------------------------------------------------------- |
-| `⌘ + [` / `⌘ + ]`      | Previous / next block                                                            |
-| `⌘ + Shift + K`        | Copy last command                                                                |
-| `⌘ + Shift + O`        | Copy last output                                                                 |
-| `⌘ + R`                | Rerun last command                                                               |
-| `⌘ + J`                | Open the parsed-block picker (last `ls -l`, `find`, `grep`, `git status`)        |
-| Click on a folder name | `cd` into it                                                                     |
-| `⌘ + click` on a file  | Smart action (tail log, edit config, render Markdown, open image, list archive…) |
-| Drag a row from `⌘+J`  | Drop on another pane → preview + copy across panes (uses each pane's cwd)        |
+| Shortcut                | Action                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| `⌘ + [` / `⌘ + ]`       | Previous / next block                                                                     |
+| `⌘ + Shift + K`         | Copy last command                                                                         |
+| `⌘ + Shift + O`         | Copy last output                                                                          |
+| `⌘ + R`                 | Rerun last command                                                                        |
+| `⌘ + J`                 | Open the parsed-block picker (last `ls -l`, `find`, `grep`, `git status`)                 |
+| Click on a folder name  | `cd` into it                                                                              |
+| `⌘ + click` on a file   | Smart action (tail log, edit config, render Markdown, open image, list archive…)          |
+| Drag a file/folder name | Drop on another pane → confirm sheet → `cp -Rp` (hold `Shift` while dragging for `mv -i`) |
 
 ### Runbooks
 
