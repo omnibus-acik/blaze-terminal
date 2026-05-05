@@ -1,15 +1,18 @@
 //! AI provider abstractions for Blaze.
 //!
-//! v0.1 ships only the Ollama adapter (local, no auth). Anthropic Claude
-//! and OpenAI/Codex adapters land in subsequent batches behind the same
-//! [`Provider`] trait.
+//! v0.1 ships three adapters behind the same [`Provider`] trait:
+//! - [`OllamaProvider`] — local, no auth
+//! - [`ClaudeProvider`] — Anthropic, API key in OS keychain
+//! - [`OpenAiProvider`] — OpenAI / OpenAI-compatible, API key in keychain
 //!
 //! Privacy boundary: per spec §5.7.3 the default surface only sends the
 //! user's typed prompt to the provider. No history, no env, no output —
 //! callers explicitly assemble whatever extra context they want before
 //! invoking [`Provider::translate`].
 
+pub mod claude;
 pub mod ollama;
+pub mod openai;
 pub mod prompt;
 
 #[cfg(feature = "serde")]
@@ -58,6 +61,7 @@ pub trait Provider: Send + Sync {
     fn name(&self) -> &'static str;
 }
 
-pub use ollama::OllamaConfig;
-pub use ollama::OllamaProvider;
+pub use claude::{ClaudeConfig, ClaudeProvider};
+pub use ollama::{OllamaConfig, OllamaProvider};
+pub use openai::{OpenAiConfig, OpenAiProvider};
 pub use prompt::extract_command;

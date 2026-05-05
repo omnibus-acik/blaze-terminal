@@ -30,6 +30,8 @@ pub fn run() {
             secrets::secret_delete,
             ai::ai_translate,
             ai::ai_status,
+            ai::ai_set_api_key,
+            ai::ai_clear_api_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

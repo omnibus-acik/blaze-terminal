@@ -18,12 +18,26 @@ scrollback_lines = 100000
 
 cursor_blink = true
 
-# Cmd+K AI translate (English → shell command). v0.1 supports a local
-# Ollama provider only — start the daemon with `ollama serve` and pull a
-# model with `ollama pull llama3.2`. Anthropic Claude and OpenAI/Codex
-# adapters land in subsequent releases.
+# Cmd+K AI translate (English → shell command). Pick one provider; cloud
+# providers ask for an API key the first time you open the Cmd+K dialog
+# and store it in your OS keychain (Keychain on macOS, Secret Service on
+# Linux). Three options:
+#   ollama — local, no key. Run `ollama serve` and `ollama pull <model>`.
+#   claude — Anthropic. Key from console.anthropic.com/settings/keys.
+#   openai — OpenAI / OpenAI-compatible. Key from platform.openai.com/api-keys.
 [ai]
-enabled = false                       # flip to true when Ollama is running
+enabled = false                       # flip to true to enable Cmd+K
+
+# Local Ollama (default — no API key, runs on your machine)
 provider = "ollama"
 host = "http://localhost:11434"
 model = "llama3.2"
+
+# To switch to Anthropic Claude, comment out the three lines above and:
+# provider = "claude"
+# model = "claude-haiku-4-5"
+
+# To switch to OpenAI:
+# provider = "openai"
+# model = "gpt-4o-mini"
+# host = "https://api.openai.com"     # override only for OpenAI-compatible servers
