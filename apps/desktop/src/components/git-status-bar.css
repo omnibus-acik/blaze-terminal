@@ -1,0 +1,69 @@
+.git-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  height: 22px;
+  font-size: 11px;
+  font-family: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", monospace;
+  color: #7a8696;
+  background-color: #0c1015;
+  border-top: 1px solid #1a2230;
+  flex-shrink: 0;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.git-branch {
+  color: #93c5fd;
+  font-weight: 500;
+}
+
+.git-divergence {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.git-ahead {
+  color: #6ee7b7;
+}
+
+.git-behind {
+  color: #fbbf24;
+}
+
+.git-dirty {
+  color: #fbbf24;
+}
+
+.git-untracked {
+  color: #94a3b8;
+}
+
+.git-stash {
+  color: #c4b5fd;
+}
+
+.git-conflicts {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.git-cwd {
+  margin-left: auto;
+  color: #5a6878;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.git-status-bar-no-repo {
+  /* Same layout, just dimmer accents. */
+}
+
+.git-no-repo-label {
+  color: #475266;
+  font-style: italic;
+}

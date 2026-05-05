@@ -39,6 +39,7 @@ import {
 import { disposeLinkDecorations, installLinkDecorations } from "./decorations";
 import type { LinkEntry } from "./linkIndex";
 import { AiPrompt } from "./components/AiPrompt";
+import { GitStatusBar } from "./components/GitStatusBar";
 
 interface BlockEventCwd {
   kind: "cwd";
@@ -83,6 +84,9 @@ export function Terminal({ sessionId, active }: TerminalProps) {
   const [pickerBlock, setPickerBlock] = useState<TrackedBlock | null>(null);
   const [saveSnapshots, setSaveSnapshots] = useState<BlockSnapshot[] | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [paneCwd, setPaneCwd] = useState<string | null>(null);
+  const [gitRefreshKey, setGitRefreshKey] = useState(0);
+  const gitRefreshTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -173,9 +177,21 @@ export function Terminal({ sessionId, active }: TerminalProps) {
         (event) => {
           if (event.payload.kind === "cwd") {
             setCwdInMap(sessionId, event.payload.path);
+            setPaneCwd(event.payload.path);
             return;
           }
           applyBlockEvent(term, blocksRef.current, event.payload as BlockEvent);
+          if (event.payload.kind === "output_end") {
+            // Debounce: many output_ends in flight (e.g. Run-all on a
+            // runbook) should coalesce into one git refresh.
+            if (gitRefreshTimerRef.current !== null) {
+              window.clearTimeout(gitRefreshTimerRef.current);
+            }
+            gitRefreshTimerRef.current = window.setTimeout(() => {
+              setGitRefreshKey((k) => k + 1);
+              gitRefreshTimerRef.current = null;
+            }, 600);
+          }
         }
       );
 
@@ -261,6 +277,10 @@ export function Terminal({ sessionId, active }: TerminalProps) {
       disposeBlocks(blocksRef.current);
       disposeLinkDecorations(installedDecorationsRef.current);
       linkIndexRef.current.clear();
+      if (gitRefreshTimerRef.current !== null) {
+        window.clearTimeout(gitRefreshTimerRef.current);
+        gitRefreshTimerRef.current = null;
+      }
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
@@ -493,6 +513,7 @@ export function Terminal({ sessionId, active }: TerminalProps) {
       onDrop={handleDrop}
     >
       <div ref={containerRef} className="terminal-host" />
+      <GitStatusBar cwd={paneCwd} refreshKey={gitRefreshKey} />
       {searchOpen && (
         <SearchBar
           value={searchTerm}

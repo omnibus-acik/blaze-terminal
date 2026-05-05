@@ -1,4 +1,5 @@
 mod ai;
+mod git;
 mod pty;
 mod runbooks;
 mod secrets;
@@ -32,6 +33,7 @@ pub fn run() {
             ai::ai_status,
             ai::ai_set_api_key,
             ai::ai_clear_api_key,
+            git::git_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
