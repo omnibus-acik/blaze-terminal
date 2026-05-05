@@ -1,7 +1,7 @@
 .git-status-bar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   padding: 0 14px;
   height: 22px;
   font-size: 11px;
@@ -13,6 +13,40 @@
   user-select: none;
   white-space: nowrap;
   overflow: hidden;
+}
+
+/* Clickable segment baseline. Buttons in the bar share the same shape so
+   they read as a single status line, not as discrete UI controls. */
+.git-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  margin: 0;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background-color 100ms ease,
+    border-color 100ms ease;
+}
+
+.git-segment:hover {
+  background-color: #1a2230;
+  border-color: #2a3340;
+}
+
+.git-segment:focus-visible {
+  outline: 1px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.git-segment-quiet {
+  color: #5a6878;
 }
 
 .git-branch {
@@ -31,6 +65,15 @@
 
 .git-behind {
   color: #fbbf24;
+}
+
+.git-in-sync {
+  color: #4b5d6b;
+}
+
+.git-no-upstream {
+  color: #6b7280;
+  font-style: italic;
 }
 
 .git-dirty {

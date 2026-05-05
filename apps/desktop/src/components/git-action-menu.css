@@ -1,0 +1,257 @@
+.git-menu-backdrop {
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 0 0 28px 0;
+}
+
+.git-menu {
+  width: min(460px, 92vw);
+  max-height: 70vh;
+  margin-left: 14px;
+  background-color: #14181f;
+  border: 1px solid #2a3340;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 13px;
+  color: #f0f0f0;
+}
+
+.git-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #1f2530;
+  font-weight: 600;
+}
+
+.git-menu-spacer {
+  flex: 1;
+}
+
+.git-menu-tag {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  color: #93c5fd;
+  background-color: #0c1628;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #34466a;
+}
+
+.git-menu-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.git-menu-section-label {
+  margin: 10px 6px 2px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7a8696;
+}
+
+.git-menu-section-label.danger-label {
+  color: #fca5a5;
+  margin-top: 16px;
+}
+
+.git-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background-color: #0e1218;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: 13px;
+  color: #f0f0f0;
+  transition:
+    background-color 100ms ease,
+    border-color 100ms ease;
+  user-select: none;
+}
+
+.git-menu-row-active,
+.git-menu-row:hover:not(:disabled) {
+  background-color: #1c2330;
+  border-color: #34466a;
+}
+
+.git-menu-row-current {
+  background-color: #142036;
+  border-color: #34466a;
+}
+
+.git-menu-row-current .git-menu-row-icon {
+  color: #6ee7b7;
+}
+
+.git-menu-row-icon {
+  width: 22px;
+  text-align: center;
+  font-size: 14px;
+  color: #93c5fd;
+}
+
+.git-menu-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.git-menu-row-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.git-menu-row-subtitle {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #7a8696;
+}
+
+.git-menu-row-hint {
+  font-size: 11px;
+  color: #7a8696;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.git-menu-row-tag {
+  font-size: 10px;
+  color: #6ee7b7;
+  background-color: #0a2a1d;
+  border: 1px solid #1d4d39;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+.git-menu-row-action {
+  background-color: transparent;
+  border-color: #1f2530;
+}
+
+.git-menu-row-disabled,
+.git-menu-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.git-menu-row-danger {
+  color: #fca5a5;
+}
+
+.git-menu-row-danger .git-menu-row-icon {
+  color: #ef4444;
+}
+
+.git-menu-row-danger:hover:not(:disabled) {
+  background-color: #2a0e0e;
+  border-color: #7f1d1d;
+}
+
+.git-menu-warning {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  background-color: #2c220a;
+  border: 1px solid #5b4318;
+  border-radius: 6px;
+  color: #fde68a;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.git-menu-warning code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  background-color: #1c1408;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.git-menu-empty {
+  padding: 16px;
+  text-align: center;
+  color: #7a8696;
+}
+
+.git-menu-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  font-size: 11.5px;
+  color: #9ab0d4;
+  cursor: pointer;
+}
+
+.git-menu-checkbox input[type="checkbox"] {
+  margin: 0;
+}
+
+.git-menu-checkbox code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  background-color: #0c1628;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: #93c5fd;
+}
+
+.git-menu-cta {
+  margin-top: 4px;
+}
+
+.git-menu-cta-danger {
+  background-color: #b91c1c !important;
+}
+
+.git-menu-cta-danger:hover:not(:disabled) {
+  background-color: #991b1b !important;
+}
+
+.git-menu-discard {
+  padding: 10px 12px;
+  background-color: #2a0e0e;
+  border: 1px solid #7f1d1d;
+  border-radius: 8px;
+  color: #fecaca;
+  font-size: 12px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.git-menu-discard p {
+  margin: 0;
+}
+
+.git-menu-discard code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  background-color: #1c0808;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: #fecaca;
+}
+
+.git-menu-discard-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

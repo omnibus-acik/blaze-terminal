@@ -18,3 +18,13 @@ export interface GitInfo {
  * (or git isn't installed, or the path doesn't exist). */
 export const gitInfo = (path: string): Promise<GitInfo | null> =>
   invoke<GitInfo | null>("git_info", { path });
+
+export interface BranchInfo {
+  name: string;
+  is_current: boolean;
+  upstream: string | null;
+}
+
+/** Local branches sorted by most-recent committer date. */
+export const gitBranches = (path: string): Promise<BranchInfo[]> =>
+  invoke<BranchInfo[]>("git_branches", { path });

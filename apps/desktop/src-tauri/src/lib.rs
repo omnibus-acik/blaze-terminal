@@ -34,6 +34,7 @@ pub fn run() {
             ai::ai_set_api_key,
             ai::ai_clear_api_key,
             git::git_info,
+            git::git_branches,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

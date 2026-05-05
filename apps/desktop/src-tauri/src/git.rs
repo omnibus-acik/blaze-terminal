@@ -49,6 +49,67 @@ pub async fn git_info(path: String) -> Option<GitInfo> {
         .flatten()
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct BranchInfo {
+    pub name: String,
+    pub is_current: bool,
+    pub upstream: Option<String>,
+}
+
+#[tauri::command]
+pub async fn git_branches(path: String) -> Result<Vec<BranchInfo>, String> {
+    if path.is_empty() {
+        return Err("path is empty".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || git_branches_blocking(&path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn git_branches_blocking(path: &str) -> Result<Vec<BranchInfo>, String> {
+    let output = std::process::Command::new("git")
+        .args([
+            "-C",
+            path,
+            "for-each-ref",
+            "--sort=-committerdate",
+            "--format=%(HEAD)|%(refname:short)|%(upstream:short)",
+            "refs/heads",
+        ])
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .env("LC_ALL", "C")
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        return Err(stderr.trim().to_string());
+    }
+    let text = std::str::from_utf8(&output.stdout).map_err(|e| e.to_string())?;
+    let mut branches = Vec::new();
+    for line in text.lines() {
+        let parts: Vec<&str> = line.splitn(3, '|').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+        let head_marker = parts[0];
+        let name = parts[1].trim();
+        if name.is_empty() {
+            continue;
+        }
+        let upstream_str = parts.get(2).map(|s| s.trim()).unwrap_or("");
+        branches.push(BranchInfo {
+            name: name.to_string(),
+            is_current: head_marker == "*",
+            upstream: if upstream_str.is_empty() {
+                None
+            } else {
+                Some(upstream_str.to_string())
+            },
+        });
+    }
+    Ok(branches)
+}
+
 fn git_info_blocking(path: &str) -> Option<GitInfo> {
     let output = std::process::Command::new("git")
         .args([

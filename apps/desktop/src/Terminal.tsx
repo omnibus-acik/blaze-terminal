@@ -513,7 +513,15 @@ export function Terminal({ sessionId, active }: TerminalProps) {
       onDrop={handleDrop}
     >
       <div ref={containerRef} className="terminal-host" />
-      <GitStatusBar cwd={paneCwd} refreshKey={gitRefreshKey} />
+      <GitStatusBar
+        cwd={paneCwd}
+        refreshKey={gitRefreshKey}
+        onRunCommand={(cmd) =>
+          invoke("pty_write", { id: sessionId, data: cmd.trimEnd() + "\r" }).catch((err) =>
+            console.error("pty_write failed:", err)
+          )
+        }
+      />
       {searchOpen && (
         <SearchBar
           value={searchTerm}
