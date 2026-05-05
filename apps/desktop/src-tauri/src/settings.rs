@@ -78,6 +78,29 @@ impl Default for AiCfg {
     }
 }
 
+/// A named environment preset. Drives a tab's accent colour, the xterm
+/// foreground/background overrides, and optional spawn parameters (shell,
+/// cwd). Users define profiles in their TOML config so they can tell at a
+/// glance which pane is talking to prod vs. stage vs. dev.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Profile {
+    /// Stable identifier; referenced from `default_profile_id` and the
+    /// `Leaf.profile_id` carried in the layout state.
+    pub id: String,
+    /// Display name shown in the profile picker.
+    pub name: String,
+    /// Accent colour for the tab dot + active-pane border (CSS hex).
+    pub color: Option<String>,
+    pub foreground: Option<String>,
+    pub background: Option<String>,
+    pub cursor: Option<String>,
+    /// Shell binary override for panes opened with this profile.
+    pub shell: Option<String>,
+    /// Default cwd for panes opened with this profile. `~` is expanded.
+    pub cwd: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -85,6 +108,45 @@ pub struct Settings {
     pub terminal: TerminalCfg,
     pub runbooks: RunbooksCfg,
     pub ai: AiCfg,
+    pub profiles: Vec<Profile>,
+    /// Profile id used when the user opens a tab without picking one.
+    /// Defaults to `"default"` if missing or pointing at an unknown id.
+    pub default_profile_id: Option<String>,
+}
+
+/// Pre-populated profile set used when the user hasn't defined any. Keeps
+/// the picker non-empty on first launch and demonstrates the colour
+/// dimension of the feature.
+fn starter_profiles() -> Vec<Profile> {
+    vec![
+        Profile {
+            id: "default".into(),
+            name: "Default".into(),
+            ..Default::default()
+        },
+        Profile {
+            id: "dev".into(),
+            name: "Development".into(),
+            color: Some("#3b82f6".into()),
+            ..Default::default()
+        },
+        Profile {
+            id: "stage".into(),
+            name: "Staging".into(),
+            color: Some("#fbbf24".into()),
+            foreground: Some("#fde68a".into()),
+            ..Default::default()
+        },
+        Profile {
+            id: "prod".into(),
+            name: "Production".into(),
+            color: Some("#ef4444".into()),
+            foreground: Some("#fecaca".into()),
+            background: Some("#1a0808".into()),
+            cursor: Some("#fca5a5".into()),
+            ..Default::default()
+        },
+    ]
 }
 
 pub fn config_dir() -> Option<PathBuf> {
@@ -96,6 +158,19 @@ pub fn config_path() -> Option<PathBuf> {
 }
 
 pub fn load() -> Settings {
+    let mut settings = read_from_disk();
+    // Always present at least the starter set so the picker has options on
+    // first launch; user-defined profiles win when the section is non-empty.
+    if settings.profiles.is_empty() {
+        settings.profiles = starter_profiles();
+    }
+    if settings.default_profile_id.is_none() {
+        settings.default_profile_id = Some("default".to_string());
+    }
+    settings
+}
+
+fn read_from_disk() -> Settings {
     let Some(path) = config_path() else {
         tracing::warn!("no config dir resolvable; using defaults");
         return Settings::default();

@@ -10,6 +10,8 @@ export type Direction = "horizontal" | "vertical";
 export interface Leaf {
   kind: "leaf";
   id: string;
+  /** Profile id this pane was opened with. `null` means "use default". */
+  profileId?: string | null;
 }
 
 export interface Split {
@@ -36,10 +38,11 @@ export interface LayoutState {
 }
 
 export type LayoutAction =
-  | { type: "newTab" }
+  | { type: "newTab"; profileId?: string | null; title?: string }
   | { type: "closeTab"; tabId: string }
   | { type: "selectTab"; tabId: string }
   | { type: "renameTab"; tabId: string; title: string }
+  | { type: "setLeafProfile"; tabId: string; leafId: string; profileId: string | null }
   | { type: "splitActive"; direction: Direction }
   | { type: "closeActivePane" }
   | { type: "focusPane"; tabId: string; leafId: string }
@@ -52,10 +55,14 @@ let counter = 0;
 const nextId = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${(counter++).toString(36)}`;
 
-export const newLeaf = (): Leaf => ({ kind: "leaf", id: nextId("pane") });
+export const newLeaf = (profileId: string | null = null): Leaf => ({
+  kind: "leaf",
+  id: nextId("pane"),
+  profileId,
+});
 
-export const newTab = (title?: string): Tab => {
-  const root = newLeaf();
+export const newTab = (title?: string, profileId: string | null = null): Tab => {
+  const root = newLeaf(profileId);
   return {
     id: nextId("tab"),
     title: title ?? "Shell",
@@ -74,6 +81,10 @@ const findLeaf = (node: Node, id: string): Leaf | null => {
   return findLeaf(node.a, id) ?? findLeaf(node.b, id);
 };
 
+/** Public: locate a leaf inside a tab. Used by UI code that needs the
+ *  active pane's profile id (TabBar dot, etc.). */
+export const findLeafIn = (tab: Tab, leafId: string): Leaf | null => findLeaf(tab.root, leafId);
+
 const collectLeaves = (node: Node, out: Leaf[] = []): Leaf[] => {
   if (node.kind === "leaf") {
     out.push(node);
@@ -90,6 +101,15 @@ const replaceLeaf = (node: Node, leafId: string, replacement: Node): Node => {
   }
   const a = replaceLeaf(node.a, leafId, replacement);
   const b = replaceLeaf(node.b, leafId, replacement);
+  return a === node.a && b === node.b ? node : { ...node, a, b };
+};
+
+/** Apply `fn` to a leaf in-place (returning a new tree). Used for
+ *  metadata edits like profile reassignment that don't change the shape. */
+const mapLeaf = (node: Node, leafId: string, fn: (l: Leaf) => Leaf): Node => {
+  if (node.kind === "leaf") return node.id === leafId ? fn(node) : node;
+  const a = mapLeaf(node.a, leafId, fn);
+  const b = mapLeaf(node.b, leafId, fn);
   return a === node.a && b === node.b ? node : { ...node, a, b };
 };
 
@@ -142,7 +162,7 @@ const updateTab = (state: LayoutState, tabId: string, fn: (t: Tab) => Tab): Layo
 export const layoutReducer = (state: LayoutState, action: LayoutAction): LayoutState => {
   switch (action.type) {
     case "newTab": {
-      const tab = newTab();
+      const tab = newTab(action.title, action.profileId ?? null);
       return { tabs: [...state.tabs, tab], activeTabId: tab.id };
     }
 
@@ -163,15 +183,24 @@ export const layoutReducer = (state: LayoutState, action: LayoutAction): LayoutS
     case "renameTab":
       return updateTab(state, action.tabId, (t) => ({ ...t, title: action.title }));
 
+    case "setLeafProfile":
+      return updateTab(state, action.tabId, (t) => ({
+        ...t,
+        root: mapLeaf(t.root, action.leafId, (l) => ({ ...l, profileId: action.profileId })),
+      }));
+
     case "splitActive": {
       return updateTab(state, state.activeTabId, (t) => {
-        const newPane = newLeaf();
+        // Inherit the source leaf's profile so a split keeps the same
+        // accent (a "split prod" pane stays a prod pane).
+        const source = findLeaf(t.root, t.activeLeafId);
+        const newPane = newLeaf(source?.profileId ?? null);
         const split: Split = {
           kind: "split",
           id: nextId("split"),
           direction: action.direction,
           ratio: 0.5,
-          a: { kind: "leaf", id: t.activeLeafId },
+          a: source ?? { kind: "leaf", id: t.activeLeafId },
           b: newPane,
         };
         const root = replaceLeaf(t.root, t.activeLeafId, split);

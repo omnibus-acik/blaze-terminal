@@ -73,6 +73,10 @@ pub fn pty_spawn(
         return Err(format!("session {id} already exists"));
     }
 
+    // Profile cwds are written by humans and commonly start with "~/".
+    // Expand it here so portable-pty receives a real path.
+    let cwd = cwd.map(expand_tilde);
+
     let config = PtyConfig {
         shell: shell.map(Into::into),
         args: vec![],
@@ -145,6 +149,23 @@ pub fn pty_kill(registry: State<'_, PtyRegistry>, id: String) -> Result<(), Stri
         .pty;
     let result = pty.lock().kill().map_err(|e| e.to_string());
     result
+}
+
+/// Expand a leading `~` or `~/...` to the user's home directory. Other
+/// shell expansions ($VARS, etc.) are intentionally not handled — the cwd
+/// comes from a config file we control.
+fn expand_tilde(path: String) -> String {
+    if path == "~" {
+        return dirs::home_dir()
+            .map(|h| h.to_string_lossy().to_string())
+            .unwrap_or(path);
+    }
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest).to_string_lossy().to_string();
+        }
+    }
+    path
 }
 
 /// Per-session state owned by the reader thread.

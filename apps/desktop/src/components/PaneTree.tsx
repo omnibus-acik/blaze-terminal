@@ -1,6 +1,8 @@
 import { useRef } from "react";
 import type { Node } from "../state/layout";
 import { useLayout } from "../state/LayoutContext";
+import { useSettings } from "../state/SettingsContext";
+import { effectiveProfile } from "../state/profiles";
 import { Terminal } from "../Terminal";
 import { Splitter } from "./Splitter";
 
@@ -12,17 +14,23 @@ interface PaneTreeProps {
 
 export function PaneTree({ node, tabId, activeLeafId }: PaneTreeProps) {
   const { dispatch } = useLayout();
+  const settings = useSettings();
 
   if (node.kind === "leaf") {
     const isActive = node.id === activeLeafId;
+    const profile = effectiveProfile(settings, node.profileId ?? null);
+    // Profile accent overrides the default blue active-pane border so
+    // prod/stage panes are visually distinct even when focused.
+    const activeStyle = isActive && profile?.color ? { borderColor: profile.color } : undefined;
     return (
       <div
         className={`pane ${isActive ? "pane-active" : ""}`}
+        style={activeStyle}
         onPointerDown={() => {
           if (!isActive) dispatch({ type: "focusPane", tabId, leafId: node.id });
         }}
       >
-        <Terminal sessionId={node.id} active={isActive} />
+        <Terminal sessionId={node.id} active={isActive} profileId={node.profileId ?? null} />
       </div>
     );
   }

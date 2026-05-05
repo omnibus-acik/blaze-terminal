@@ -41,3 +41,34 @@ model = "llama3.2"
 # provider = "openai"
 # model = "gpt-4o-mini"
 # host = "https://api.openai.com"     # override only for OpenAI-compatible servers
+
+# Profiles — named environment presets. Pick one when opening a new tab
+# (chevron next to "+" in the tab bar) so the tab carries an obvious
+# accent colour and optional shell/cwd defaults. All fields except `id`
+# and `name` are optional; missing colour fields keep the base theme.
+#
+# If you don't define any profiles, Blaze ships with default/dev/stage/prod
+# starters so the picker is never empty on first launch.
+
+# default_profile_id = "dev"           # what `+` (no chevron) creates
+
+# [[profiles]]
+# id = "dev"
+# name = "Development"
+# color = "#3b82f6"                    # tab dot + active-pane accent
+# cwd = "~/code"                       # ~ is expanded
+# shell = "/opt/homebrew/bin/fish"     # overrides [terminal].shell
+
+# [[profiles]]
+# id = "stage"
+# name = "Staging"
+# color = "#fbbf24"
+# foreground = "#fde68a"               # xterm fg tint
+
+# [[profiles]]
+# id = "prod"
+# name = "Production"
+# color = "#ef4444"
+# foreground = "#fecaca"
+# background = "#1a0808"               # red-tinted background
+# cursor = "#fca5a5"

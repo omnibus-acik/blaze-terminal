@@ -397,7 +397,7 @@ export function RunbookView({ summary, onClose }: Props) {
           )}
         </div>
         <div className="rbview-pane">
-          <Terminal sessionId={sessionId} active={true} />
+          <Terminal sessionId={sessionId} active={true} profileId={null} />
         </div>
       </div>
       {pending && book && (

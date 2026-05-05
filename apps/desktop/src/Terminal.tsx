@@ -40,6 +40,7 @@ import { disposeLinkDecorations, installLinkDecorations } from "./decorations";
 import type { LinkEntry } from "./linkIndex";
 import { AiPrompt } from "./components/AiPrompt";
 import { GitStatusBar } from "./components/GitStatusBar";
+import { effectiveProfile } from "./state/profiles";
 
 interface BlockEventCwd {
   kind: "cwd";
@@ -49,6 +50,8 @@ interface BlockEventCwd {
 interface TerminalProps {
   sessionId: string;
   active: boolean;
+  /** Profile id for this pane. `null` means use the default profile. */
+  profileId: string | null;
 }
 
 const isMacPlatform = navigator.platform.toLowerCase().includes("mac");
@@ -60,8 +63,9 @@ const decodeBase64 = (b64: string): Uint8Array => {
   return bytes;
 };
 
-export function Terminal({ sessionId, active }: TerminalProps) {
+export function Terminal({ sessionId, active, profileId }: TerminalProps) {
   const settings = useSettings();
+  const profile = effectiveProfile(settings, profileId);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -92,6 +96,9 @@ export function Terminal({ sessionId, active }: TerminalProps) {
     const container = containerRef.current;
     if (!container) return;
 
+    // Profile-driven theme overrides on top of the base dark palette. Any
+    // null fields keep the base value so a profile can tint just one
+    // dimension (e.g. only the foreground for "stage").
     const term = new XTerm({
       fontFamily: settings.appearance.font_family,
       fontSize: settings.appearance.font_size,
@@ -99,9 +106,9 @@ export function Terminal({ sessionId, active }: TerminalProps) {
       cursorBlink: settings.terminal.cursor_blink,
       allowProposedApi: true,
       theme: {
-        background: "#0a0a0a",
-        foreground: "#f0f0f0",
-        cursor: "#f0f0f0",
+        background: profile?.background ?? "#0a0a0a",
+        foreground: profile?.foreground ?? "#f0f0f0",
+        cursor: profile?.cursor ?? "#f0f0f0",
         selectionBackground: "#3a3a3a",
       },
       scrollback: settings.terminal.scrollback_lines,
@@ -235,7 +242,10 @@ export function Terminal({ sessionId, active }: TerminalProps) {
             id: sessionId,
             cols: term.cols,
             rows: term.rows,
-            shell: settings.terminal.shell,
+            // Profile shell/cwd override the global terminal config when
+            // set; null falls through to the user's $SHELL / $HOME.
+            shell: profile?.shell ?? settings.terminal.shell,
+            cwd: profile?.cwd ?? null,
           },
         });
       } catch (e) {
