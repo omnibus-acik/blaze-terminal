@@ -3,34 +3,53 @@ import { fetchStatus, install, type ShellStatus, type Shell } from "../state/she
 
 const DISMISS_KEY = "blaze.si.banner-dismissed";
 
-// One-time banner: prompts to install OSC 133 hooks for any shell that
-// has an rcfile but isn't yet integrated. Dismiss persists in localStorage
-// (per spec §5.3 — install requires explicit consent and is reversible
-// from Settings later).
+/**
+ * One-time banner that prompts to install OSC 133 hooks for any shell with
+ * an rcfile but no Blaze block. Click "Not now" persists across sessions.
+ *
+ * The dismissal applies ONLY to first-install ("not_installed"). When
+ * Blaze ships an updated snippet (status flips to "outdated") we always
+ * re-show, because the user already opted in once — they need to know
+ * that features depending on the new hook (cwd tracking, capture
+ * commands, etc.) won't work until they refresh.
+ */
 export function ShellIntegrationBanner() {
   const [statuses, setStatuses] = useState<ShellStatus[] | null>(null);
-  const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISS_KEY) === "1");
+  const [dismissedNotInstalled, setDismissedNotInstalled] = useState(
+    () => localStorage.getItem(DISMISS_KEY) === "1"
+  );
   const [busy, setBusy] = useState<Shell | null>(null);
 
   useEffect(() => {
-    if (dismissed) return;
     fetchStatus()
       .then(setStatuses)
       .catch((e) => console.warn("shell_integration_status failed:", e));
-  }, [dismissed]);
+  }, []);
 
-  if (dismissed || !statuses) return null;
+  if (!statuses) return null;
 
-  const actionable = statuses.filter(
-    (s) => s.status === "not_installed" || s.status === "outdated"
-  );
+  const outdated = statuses.filter((s) => s.status === "outdated");
+  const notInstalled = statuses.filter((s) => s.status === "not_installed");
+
+  // Show outdated regardless of prior dismissal — user already opted in.
+  // Show not_installed only if the user hasn't already said "not now".
+  const actionable = [...outdated, ...(dismissedNotInstalled ? [] : notInstalled)];
   if (actionable.length === 0) return null;
 
-  const hasOutdated = actionable.some((s) => s.status === "outdated");
+  const hasOutdated = outdated.length > 0;
 
   const dismiss = () => {
-    localStorage.setItem(DISMISS_KEY, "1");
-    setDismissed(true);
+    // Only "not_installed" can be dismissed permanently — outdated keeps
+    // re-appearing on each session until the user updates.
+    if (!hasOutdated) {
+      localStorage.setItem(DISMISS_KEY, "1");
+      setDismissedNotInstalled(true);
+    } else {
+      // Hide for this session only.
+      setStatuses((cur) =>
+        (cur ?? []).map((s) => (s.status === "outdated" ? { ...s, status: "current" } : s))
+      );
+    }
   };
 
   const handleInstall = async (shell: Shell) => {
@@ -53,7 +72,7 @@ export function ShellIntegrationBanner() {
         </strong>
         <span className="si-banner-sub">
           {hasOutdated
-            ? "Blaze's shell hooks have been updated (better command capture). Click to refresh."
+            ? "Blaze's shell hooks have new features (cwd tracking for the git status bar, command capture, …). Click to refresh — the existing block in your rcfile is replaced in place."
             : "Blaze can add OSC 133 hooks to your shell rcfile so it can recognise where each command starts and ends. Reversible from Settings."}
         </span>
       </div>
@@ -73,7 +92,7 @@ export function ShellIntegrationBanner() {
           );
         })}
         <button className="si-btn" onClick={dismiss}>
-          Not now
+          {hasOutdated ? "Later" : "Not now"}
         </button>
       </div>
     </div>
