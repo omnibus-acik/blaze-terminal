@@ -40,6 +40,7 @@ import { disposeLinkDecorations, installLinkDecorations } from "./decorations";
 import type { LinkEntry } from "./linkIndex";
 import { AiPrompt } from "./components/AiPrompt";
 import { GitStatusBar } from "./components/GitStatusBar";
+import { TerminalHeader } from "./components/TerminalHeader";
 import { effectiveProfile } from "./state/profiles";
 
 interface BlockEventCwd {
@@ -91,6 +92,15 @@ export function Terminal({ sessionId, active, profileId }: TerminalProps) {
   const [paneCwd, setPaneCwd] = useState<string | null>(null);
   const [gitRefreshKey, setGitRefreshKey] = useState(0);
   const gitRefreshTimerRef = useRef<number | null>(null);
+
+  // Browser-style cwd history for the navigation header. The stack holds
+  // every distinct cwd visited; `index` points at the current one. When
+  // the user clicks Back/Forward we set `navTargetRef` to the expected
+  // path so the resulting OSC 7331 emit syncs the index instead of
+  // truncating the forward arm.
+  const historyRef = useRef<{ stack: string[]; index: number }>({ stack: [], index: -1 });
+  const navTargetRef = useRef<string | null>(null);
+  const [historyVersion, setHistoryVersion] = useState(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -183,8 +193,24 @@ export function Terminal({ sessionId, active, profileId }: TerminalProps) {
         `pty:${sessionId}:block`,
         (event) => {
           if (event.payload.kind === "cwd") {
-            setCwdInMap(sessionId, event.payload.path);
-            setPaneCwd(event.payload.path);
+            const path = event.payload.path;
+            setCwdInMap(sessionId, path);
+            // Update history. When the change is the result of a
+            // back/forward click we recorded the target in navTargetRef
+            // and just sync the index, preserving the forward arm.
+            const expected = navTargetRef.current;
+            navTargetRef.current = null;
+            const cur = historyRef.current;
+            if (expected !== null && path === expected) {
+              const idx = cur.stack.indexOf(path);
+              if (idx >= 0) historyRef.current = { ...cur, index: idx };
+            } else if (cur.stack[cur.index] !== path) {
+              const truncated = cur.stack.slice(0, cur.index + 1);
+              truncated.push(path);
+              historyRef.current = { stack: truncated, index: truncated.length - 1 };
+            }
+            setHistoryVersion((v) => v + 1);
+            setPaneCwd(path);
             return;
           }
           applyBlockEvent(term, blocksRef.current, event.payload as BlockEvent);
@@ -515,6 +541,58 @@ export function Terminal({ sessionId, active, profileId }: TerminalProps) {
     });
   };
 
+  // Mark `historyVersion` as read so the lint can't strip it; the state
+  // exists purely to drive re-renders when historyRef mutates.
+  void historyVersion;
+
+  const writeCmd = (cmd: string) =>
+    invoke("pty_write", { id: sessionId, data: cmd.trimEnd() + "\r" }).catch((err) =>
+      console.error("pty_write failed:", err)
+    );
+
+  const onUp = () => {
+    // Use a relative `cd ..` so it works from any subshell / virtualenv.
+    void writeCmd("cd ..");
+  };
+
+  const onBack = () => {
+    const cur = historyRef.current;
+    if (cur.index <= 0) return;
+    const target = cur.stack[cur.index - 1];
+    navTargetRef.current = target;
+    void writeCmd(`cd ${shellQuote(target)}`);
+  };
+
+  const onForward = () => {
+    const cur = historyRef.current;
+    if (cur.index < 0 || cur.index >= cur.stack.length - 1) return;
+    const target = cur.stack[cur.index + 1];
+    navTargetRef.current = target;
+    void writeCmd(`cd ${shellQuote(target)}`);
+  };
+
+  const onCopy = () => {
+    const sel = termRef.current?.getSelection() ?? "";
+    const text = sel.length > 0 ? sel : (paneCwd ?? "");
+    if (!text) return;
+    void copyToClipboard(text);
+    showToast(sel.length > 0 ? "Copied selection" : "Copied path");
+  };
+
+  const onPaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) termRef.current?.paste(text);
+    } catch (e) {
+      console.error("clipboard read failed:", e);
+      showToast("Clipboard read denied");
+    }
+  };
+
+  const hist = historyRef.current;
+  const canBack = hist.index > 0;
+  const canForward = hist.index >= 0 && hist.index < hist.stack.length - 1;
+
   return (
     <div
       className="terminal-host-wrapper"
@@ -522,6 +600,16 @@ export function Terminal({ sessionId, active, profileId }: TerminalProps) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      <TerminalHeader
+        cwd={paneCwd}
+        canBack={canBack}
+        canForward={canForward}
+        onUp={onUp}
+        onBack={onBack}
+        onForward={onForward}
+        onCopy={onCopy}
+        onPaste={onPaste}
+      />
       <div ref={containerRef} className="terminal-host" />
       <GitStatusBar
         cwd={paneCwd}
