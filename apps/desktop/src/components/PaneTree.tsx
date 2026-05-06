@@ -30,7 +30,13 @@ export function PaneTree({ node, tabId, activeLeafId }: PaneTreeProps) {
           if (!isActive) dispatch({ type: "focusPane", tabId, leafId: node.id });
         }}
       >
-        <Terminal sessionId={node.id} active={isActive} profileId={node.profileId ?? null} />
+        <Terminal
+          sessionId={node.id}
+          active={isActive}
+          profileId={node.profileId ?? null}
+          initialCommand={node.initialCommand ?? null}
+          tabId={tabId}
+        />
       </div>
     );
   }

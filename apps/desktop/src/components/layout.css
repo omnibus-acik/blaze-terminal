@@ -90,6 +90,23 @@
   opacity: 1;
 }
 
+.tab-ssh {
+  background: none;
+  border: none;
+  color: #707070;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 10px;
+  margin: 4px 0 4px 4px;
+  border-radius: 6px;
+  align-self: stretch;
+}
+
+.tab-ssh:hover {
+  background-color: #1f1f1f;
+  color: #f0f0f0;
+}
+
 .tab-new-wrapper {
   display: flex;
   align-items: stretch;

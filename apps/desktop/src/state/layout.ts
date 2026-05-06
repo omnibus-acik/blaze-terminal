@@ -12,6 +12,11 @@ export interface Leaf {
   id: string;
   /** Profile id this pane was opened with. `null` means "use default". */
   profileId?: string | null;
+  /** One-shot command to write into the PTY immediately after spawn —
+   *  used by the SSH picker to land in `ssh <alias>` automatically.
+   *  Cleared by the Terminal once it has fired so re-renders don't
+   *  re-run it. */
+  initialCommand?: string | null;
 }
 
 export interface Split {
@@ -38,11 +43,17 @@ export interface LayoutState {
 }
 
 export type LayoutAction =
-  | { type: "newTab"; profileId?: string | null; title?: string }
+  | {
+      type: "newTab";
+      profileId?: string | null;
+      title?: string;
+      initialCommand?: string | null;
+    }
   | { type: "closeTab"; tabId: string }
   | { type: "selectTab"; tabId: string }
   | { type: "renameTab"; tabId: string; title: string }
   | { type: "setLeafProfile"; tabId: string; leafId: string; profileId: string | null }
+  | { type: "clearInitialCommand"; tabId: string; leafId: string }
   | { type: "splitActive"; direction: Direction }
   | { type: "closeActivePane" }
   | { type: "focusPane"; tabId: string; leafId: string }
@@ -55,14 +66,22 @@ let counter = 0;
 const nextId = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${(counter++).toString(36)}`;
 
-export const newLeaf = (profileId: string | null = null): Leaf => ({
+export const newLeaf = (
+  profileId: string | null = null,
+  initialCommand: string | null = null
+): Leaf => ({
   kind: "leaf",
   id: nextId("pane"),
   profileId,
+  initialCommand,
 });
 
-export const newTab = (title?: string, profileId: string | null = null): Tab => {
-  const root = newLeaf(profileId);
+export const newTab = (
+  title?: string,
+  profileId: string | null = null,
+  initialCommand: string | null = null
+): Tab => {
+  const root = newLeaf(profileId, initialCommand);
   return {
     id: nextId("tab"),
     title: title ?? "Shell",
@@ -162,7 +181,7 @@ const updateTab = (state: LayoutState, tabId: string, fn: (t: Tab) => Tab): Layo
 export const layoutReducer = (state: LayoutState, action: LayoutAction): LayoutState => {
   switch (action.type) {
     case "newTab": {
-      const tab = newTab(action.title, action.profileId ?? null);
+      const tab = newTab(action.title, action.profileId ?? null, action.initialCommand ?? null);
       return { tabs: [...state.tabs, tab], activeTabId: tab.id };
     }
 
@@ -187,6 +206,12 @@ export const layoutReducer = (state: LayoutState, action: LayoutAction): LayoutS
       return updateTab(state, action.tabId, (t) => ({
         ...t,
         root: mapLeaf(t.root, action.leafId, (l) => ({ ...l, profileId: action.profileId })),
+      }));
+
+    case "clearInitialCommand":
+      return updateTab(state, action.tabId, (t) => ({
+        ...t,
+        root: mapLeaf(t.root, action.leafId, (l) => ({ ...l, initialCommand: null })),
       }));
 
     case "splitActive": {

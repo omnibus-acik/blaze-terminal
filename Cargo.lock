@@ -167,6 +167,7 @@ dependencies = [
  "blaze-shell-integration",
  "blaze-vt",
  "dirs 5.0.1",
+ "glob",
  "keyring",
  "parking_lot",
  "serde",

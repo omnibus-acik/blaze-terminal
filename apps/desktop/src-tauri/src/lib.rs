@@ -6,6 +6,7 @@ mod secrets;
 mod settings;
 mod shell_integration;
 mod smart_actions;
+mod ssh;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,6 +36,7 @@ pub fn run() {
             ai::ai_clear_api_key,
             git::git_info,
             git::git_branches,
+            ssh::ssh_hosts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

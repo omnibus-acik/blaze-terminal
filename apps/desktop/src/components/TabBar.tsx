@@ -5,8 +5,14 @@ import { findLeafIn } from "../state/layout";
 import { effectiveProfile } from "../state/profiles";
 import type { Profile } from "../state/settings";
 
+interface TabBarProps {
+  /** Open the SSH host picker. Lifted to App so the same picker can
+   *  also be opened from the global Cmd+Shift+H shortcut. */
+  onOpenSshPicker: () => void;
+}
+
 /**
- * Tab bar with three new affordances on top of select/close:
+ * Tab bar with these affordances on top of select/close:
  *
  * - **Dot**: each tab shows a small colour dot for the active leaf's
  *   profile, so prod / stage / dev are obvious at a glance.
@@ -14,8 +20,11 @@ import type { Profile } from "../state/settings";
  * - **Profile picker**: a chevron next to the `+` button opens a menu of
  *   profiles for "new tab as…" — clicking `+` directly creates a tab
  *   with the default profile.
+ * - **SSH picker**: a 🖥 button next to the new-tab cluster opens the
+ *   list of `~/.ssh/config` hosts; clicking one spawns a tab and runs
+ *   `ssh <alias>` automatically.
  */
-export function TabBar() {
+export function TabBar({ onOpenSshPicker }: TabBarProps) {
   const { state, dispatch } = useLayout();
   const settings = useSettings();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -53,6 +62,15 @@ export function TabBar() {
           />
         );
       })}
+      <button
+        type="button"
+        className="tab-ssh"
+        aria-label="SSH hosts"
+        title="SSH hosts (Cmd/Ctrl+Shift+H)"
+        onClick={onOpenSshPicker}
+      >
+        🖥
+      </button>
       <div className="tab-new-wrapper" ref={newWrapperRef}>
         <button
           className="tab-new"

@@ -8,6 +8,7 @@ import { ShellIntegrationBanner } from "./components/ShellIntegrationBanner";
 import { ToastHost, showToast } from "./components/Toast";
 import { RunbookPicker } from "./components/RunbookPicker";
 import { RunbookView } from "./components/RunbookView";
+import { SshHostsPicker } from "./components/SshHostsPicker";
 import { TransferConfirmDialog } from "./components/TransferConfirmDialog";
 import type { RunbookSummary } from "./state/runbooks";
 import { TRANSFER_REQUEST_EVENT, type TransferRequest } from "./state/transfer";
@@ -19,7 +20,7 @@ import "./App.css";
 const isMac = navigator.platform.toLowerCase().includes("mac");
 
 function Workspace() {
-  const { state } = useLayout();
+  const { state, dispatch } = useLayout();
   useShortcuts();
 
   // Runbook UI is global: opening one takes over the tab-content area for
@@ -30,6 +31,7 @@ function Workspace() {
     | { stage: "view"; summary: RunbookSummary };
   const [runbookView, setRunbookView] = useState<RunbookView>({ stage: "closed" });
   const [transferRequest, setTransferRequest] = useState<TransferRequest | null>(null);
+  const [sshPickerOpen, setSshPickerOpen] = useState(false);
 
   // Window-level event from Terminal.tsx drop handlers — open the confirm
   // dialog without prop-drilling state through the layout tree.
@@ -61,6 +63,12 @@ function Workspace() {
         e.preventDefault();
         setRunbookView({ stage: "picker" });
       }
+      // Cmd/Ctrl+Shift+H — SSH host picker. Layered alongside the other
+      // global modal triggers so they share one keydown listener.
+      if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === "h") {
+        e.preventDefault();
+        setSshPickerOpen(true);
+      }
     };
     window.addEventListener("keydown", onKey, { capture: true });
     return () => window.removeEventListener("keydown", onKey, { capture: true });
@@ -71,7 +79,7 @@ function Workspace() {
   return (
     <div className="app">
       <ShellIntegrationBanner />
-      <TabBar />
+      <TabBar onOpenSshPicker={() => setSshPickerOpen(true)} />
       <div className="tab-content">
         {runbookView.stage === "view" ? (
           <RunbookView
@@ -102,9 +110,31 @@ function Workspace() {
           onCancel={() => setTransferRequest(null)}
         />
       )}
+      {sshPickerOpen && (
+        <SshHostsPicker
+          onConnect={(host) => {
+            // Open a new tab whose pane runs `ssh <alias>` once the PTY
+            // is ready. Title defaults to the alias so the tab is
+            // identifiable at a glance.
+            dispatch({
+              type: "newTab",
+              title: host.name,
+              initialCommand: `ssh ${shellQuoteAlias(host.name)}`,
+            });
+            setSshPickerOpen(false);
+          }}
+          onClose={() => setSshPickerOpen(false)}
+        />
+      )}
       <ToastHost />
     </div>
   );
+}
+
+/** SSH host aliases are user-defined, so quote defensively before
+ *  sending them through the shell. POSIX single-quote escape. */
+function shellQuoteAlias(s: string): string {
+  return `'${s.replace(/'/g, "'\\''")}'`;
 }
 
 function App() {

@@ -42,6 +42,7 @@ import { AiPrompt } from "./components/AiPrompt";
 import { GitStatusBar } from "./components/GitStatusBar";
 import { TerminalHeader } from "./components/TerminalHeader";
 import { effectiveProfile } from "./state/profiles";
+import { useLayout } from "./state/LayoutContext";
 
 interface BlockEventCwd {
   kind: "cwd";
@@ -53,6 +54,13 @@ interface TerminalProps {
   active: boolean;
   /** Profile id for this pane. `null` means use the default profile. */
   profileId: string | null;
+  /** Optional one-shot command run after the PTY spawns — used by the
+   *  SSH picker to land in `ssh <alias>`. Cleared via dispatch after the
+   *  first run so re-mounts don't re-fire it. */
+  initialCommand?: string | null;
+  /** Tab id that owns this leaf, needed to dispatch the
+   *  `clearInitialCommand` action once the command has run. */
+  tabId?: string;
 }
 
 const isMacPlatform = navigator.platform.toLowerCase().includes("mac");
@@ -64,9 +72,10 @@ const decodeBase64 = (b64: string): Uint8Array => {
   return bytes;
 };
 
-export function Terminal({ sessionId, active, profileId }: TerminalProps) {
+export function Terminal({ sessionId, active, profileId, initialCommand, tabId }: TerminalProps) {
   const settings = useSettings();
   const profile = effectiveProfile(settings, profileId);
+  const layout = useLayout();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -274,6 +283,20 @@ export function Terminal({ sessionId, active, profileId }: TerminalProps) {
             cwd: profile?.cwd ?? null,
           },
         });
+        // One-shot command (e.g. `ssh prod-1`) injected by pickers.
+        // We clear it from layout state immediately so a future remount
+        // can't re-fire the same command.
+        if (initialCommand && tabId) {
+          try {
+            await invoke("pty_write", {
+              id: sessionId,
+              data: initialCommand.trimEnd() + "\r",
+            });
+          } catch (e) {
+            console.error("initial command write failed:", e);
+          }
+          layout.dispatch({ type: "clearInitialCommand", tabId, leafId: sessionId });
+        }
       } catch (e) {
         term.writeln(`\r\n\x1b[31mfailed to spawn pty: ${String(e)}\x1b[0m`);
       }
